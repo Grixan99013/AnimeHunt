@@ -1,0 +1,48 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: white;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: #1e293b;
+}
+
+.header input {
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+}
+
+.main {
+  padding: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.card {
+  background: #1e293b;
+  padding: 15px;
+  border-radius: 12px;
+  transition: 0.3s;
+}
+
+.card:hover {
+  background: #334155;
+  transform: scale(1.05);
+}
+
+.footer {
+  text-align: center;
+  padding: 15px;
+  background: #1e293b;
+}
