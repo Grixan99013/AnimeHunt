@@ -21,108 +21,97 @@ export default function Layout({ children }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0d0f14] text-white font-sans">
-      {/* ── Navbar ── */}
-      <header className="sticky top-0 z-50 bg-[#0d0f14]/90 backdrop-blur border-b border-white/5">
+    <div style={{ minHeight: "100vh", backgroundColor: "#0d0f14", color: "white" }}>
+      <header className="sticky top-0 z-50 backdrop-blur-md border-b border-white/5"
+        style={{ backgroundColor: "rgba(13,15,20,0.92)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <span className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">
-              ANI<span className="text-white">VERSE</span>
+
+          <Link to="/" className="flex items-center">
+            <span className="text-2xl font-black tracking-tighter"
+              style={{ background: "linear-gradient(to right, #a78bfa, #e879f9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              ANIME
             </span>
+            <span className="text-2xl font-black tracking-tighter text-white">HUNT</span>
           </Link>
 
-          {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map(link => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === link.to
-                    ? "bg-violet-500/20 text-violet-300"
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
-                }`}
-              >
+              <Link key={link.to} to={link.to}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  backgroundColor: location.pathname === link.to ? "rgba(139,92,246,0.2)" : "transparent",
+                  color: location.pathname === link.to ? "#c4b5fd" : "#9ca3af",
+                }}>
                 {link.label}
               </Link>
             ))}
           </nav>
 
-          {/* Auth section */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
               <>
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  <span className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold">
+                <Link to="/profile" className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
+                  style={{ color: "#d1d5db" }}>
+                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                    style={{ background: "linear-gradient(135deg, #7c3aed, #a21caf)" }}>
                     {user.username[0].toUpperCase()}
                   </span>
                   {user.username}
                 </Link>
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white border border-white/10 hover:border-white/20 transition-all"
-                >
+                <button onClick={handleLogout}
+                  className="px-4 py-1.5 rounded-lg text-sm font-medium border"
+                  style={{ color: "#9ca3af", borderColor: "rgba(255,255,255,0.1)", background: "transparent" }}>
                   Logout
                 </button>
               </>
             ) : (
               <>
-                <Link
-                  to="/login"
-                  className="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white transition-colors"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className="px-4 py-1.5 rounded-lg text-sm font-medium bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white transition-all shadow-lg shadow-violet-500/20"
-                >
-                  Register
-                </Link>
+                <Link to="/login" className="px-4 py-1.5 rounded-lg text-sm font-medium"
+                  style={{ color: "#d1d5db" }}>Sign In</Link>
+                <Link to="/register" className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+                  style={{ background: "linear-gradient(to right, #7c3aed, #a21caf)" }}>Register</Link>
               </>
             )}
           </div>
 
-          {/* Mobile hamburger */}
-          <button
-            className="md:hidden p-2 text-gray-400 hover:text-white"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <div className="w-5 space-y-1">
-              <span className={`block h-0.5 bg-current transition-all ${menuOpen ? "rotate-45 translate-y-1.5" : ""}`} />
-              <span className={`block h-0.5 bg-current transition-all ${menuOpen ? "opacity-0" : ""}`} />
-              <span className={`block h-0.5 bg-current transition-all ${menuOpen ? "-rotate-45 -translate-y-1.5" : ""}`} />
-            </div>
+          <button className="md:hidden p-2" style={{ color: "#9ca3af", background: "transparent", border: "none", cursor: "pointer" }}
+            onClick={() => setMenuOpen(!menuOpen)}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              {menuOpen
+                ? <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                : <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd"/>
+              }
+            </svg>
           </button>
         </div>
 
-        {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden bg-[#13151c] border-t border-white/5 px-4 py-3 space-y-1">
+          <div className="md:hidden border-t border-white/5 px-4 py-3 space-y-1"
+            style={{ backgroundColor: "#13151c" }}>
             {navLinks.map(link => (
               <Link key={link.to} to={link.to} onClick={() => setMenuOpen(false)}
-                className="block px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5">
+                className="block px-3 py-2 rounded-lg text-sm" style={{ color: "#d1d5db" }}>
                 {link.label}
               </Link>
             ))}
             <div className="pt-2 border-t border-white/5 flex flex-col gap-2">
               {user ? (
                 <>
-                  <Link to="/profile" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-300">
+                  <Link to="/profile" onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm" style={{ color: "#d1d5db" }}>
                     Profile ({user.username})
                   </Link>
-                  <button onClick={() => { handleLogout(); setMenuOpen(false); }} className="text-left px-3 py-2 text-sm text-red-400">
+                  <button onClick={() => { handleLogout(); setMenuOpen(false); }}
+                    className="text-left px-3 py-2 text-sm" style={{ color: "#f87171", background: "transparent", border: "none", cursor: "pointer" }}>
                     Logout
                   </button>
                 </>
               ) : (
                 <>
-                  <Link to="/login" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-300">Sign In</Link>
-                  <Link to="/register" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-violet-400">Register</Link>
+                  <Link to="/login" onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm" style={{ color: "#d1d5db" }}>Sign In</Link>
+                  <Link to="/register" onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm" style={{ color: "#a78bfa" }}>Register</Link>
                 </>
               )}
             </div>
@@ -130,14 +119,16 @@ export default function Layout({ children }) {
         )}
       </header>
 
-      {/* ── Page content ── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {children}
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="mt-16 border-t border-white/5 py-8 text-center text-gray-600 text-sm">
-        <p className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 font-bold text-lg mb-1">ANIVERSE</p>
+      <footer className="mt-16 border-t border-white/5 py-8 text-center text-sm"
+        style={{ color: "#4b5563" }}>
+        <p className="font-bold text-lg mb-1"
+          style={{ background: "linear-gradient(to right, #a78bfa, #e879f9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          ANIMEHUNT
+        </p>
         <p>Your anime encyclopedia © {new Date().getFullYear()}</p>
       </footer>
     </div>
