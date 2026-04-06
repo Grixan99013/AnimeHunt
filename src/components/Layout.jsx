@@ -9,15 +9,11 @@ export default function Layout({ children }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
+  const handleLogout = () => { logout(); navigate("/"); };
 
   const navLinks = [
-    { to: "/",        label: "Home" },
-    { to: "/catalog", label: "Catalog" },
-    { to: "/about",   label: "About" },
+    { to: "/",        label: "Главная" },
+    { to: "/catalog", label: "Каталог" },
   ];
 
   return (
@@ -60,21 +56,22 @@ export default function Layout({ children }) {
                 </Link>
                 <button onClick={handleLogout}
                   className="px-4 py-1.5 rounded-lg text-sm font-medium border"
-                  style={{ color: "#9ca3af", borderColor: "rgba(255,255,255,0.1)", background: "transparent" }}>
-                  Logout
+                  style={{ color: "#9ca3af", borderColor: "rgba(255,255,255,0.1)", background: "transparent", cursor: "pointer" }}>
+                  Выйти
                 </button>
               </>
             ) : (
               <>
                 <Link to="/login" className="px-4 py-1.5 rounded-lg text-sm font-medium"
-                  style={{ color: "#d1d5db" }}>Sign In</Link>
+                  style={{ color: "#d1d5db" }}>Войти</Link>
                 <Link to="/register" className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
-                  style={{ background: "linear-gradient(to right, #7c3aed, #a21caf)" }}>Register</Link>
+                  style={{ background: "linear-gradient(to right, #7c3aed, #a21caf)" }}>Регистрация</Link>
               </>
             )}
           </div>
 
-          <button className="md:hidden p-2" style={{ color: "#9ca3af", background: "transparent", border: "none", cursor: "pointer" }}
+          <button className="md:hidden p-2"
+            style={{ color: "#9ca3af", background: "transparent", border: "none", cursor: "pointer" }}
             onClick={() => setMenuOpen(!menuOpen)}>
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               {menuOpen
@@ -99,19 +96,20 @@ export default function Layout({ children }) {
                 <>
                   <Link to="/profile" onClick={() => setMenuOpen(false)}
                     className="block px-3 py-2 text-sm" style={{ color: "#d1d5db" }}>
-                    Profile ({user.username})
+                    Профиль ({user.username})
                   </Link>
                   <button onClick={() => { handleLogout(); setMenuOpen(false); }}
-                    className="text-left px-3 py-2 text-sm" style={{ color: "#f87171", background: "transparent", border: "none", cursor: "pointer" }}>
-                    Logout
+                    className="text-left px-3 py-2 text-sm"
+                    style={{ color: "#f87171", background: "transparent", border: "none", cursor: "pointer" }}>
+                    Выйти
                   </button>
                 </>
               ) : (
                 <>
                   <Link to="/login" onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm" style={{ color: "#d1d5db" }}>Sign In</Link>
+                    className="block px-3 py-2 text-sm" style={{ color: "#d1d5db" }}>Войти</Link>
                   <Link to="/register" onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm" style={{ color: "#a78bfa" }}>Register</Link>
+                    className="block px-3 py-2 text-sm" style={{ color: "#a78bfa" }}>Регистрация</Link>
                 </>
               )}
             </div>
@@ -119,9 +117,7 @@ export default function Layout({ children }) {
         )}
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {children}
-      </main>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">{children}</main>
 
       <footer className="mt-16 border-t border-white/5 py-8 text-center text-sm"
         style={{ color: "#4b5563" }}>
@@ -129,7 +125,7 @@ export default function Layout({ children }) {
           style={{ background: "linear-gradient(to right, #a78bfa, #e879f9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
           ANIMEHUNT
         </p>
-        <p>Your anime encyclopedia © {new Date().getFullYear()}</p>
+        <p>{new Date().getFullYear()}</p>
       </footer>
     </div>
   );

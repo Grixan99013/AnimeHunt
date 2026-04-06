@@ -5,32 +5,26 @@ import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import Catalog from "./pages/Catalog";
 import AnimePage from "./pages/AnimePage";
-import About from "./pages/About";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 
-// ── Auth Context ──────────────────────────────────────────────
 export const AuthContext = createContext(null);
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export function useAuth() { return useContext(AuthContext); }
 
 function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem("anime_user");
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      // Убираем token из объекта user для отображения
+      const { token, ...userOnly } = parsed;
+      return userOnly;
+    } catch { return null; }
   });
 
-  const login = (userData) => {
-    setUser(userData);
-    localStorage.setItem("anime_user", JSON.stringify(userData));
-  };
+  const login = (userData) => setUser(userData);
 
   const logout = () => {
     setUser(null);
@@ -49,7 +43,6 @@ function PrivateRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
-// ── App ───────────────────────────────────────────────────────
 export default function App() {
   return (
     <AuthProvider>
@@ -59,12 +52,9 @@ export default function App() {
             <Route path="/"          element={<Home />} />
             <Route path="/catalog"   element={<Catalog />} />
             <Route path="/anime/:id" element={<AnimePage />} />
-            <Route path="/about"     element={<About />} />
             <Route path="/login"     element={<Login />} />
             <Route path="/register"  element={<Register />} />
-            <Route path="/profile"   element={
-              <PrivateRoute><Profile /></PrivateRoute>
-            } />
+            <Route path="/profile"   element={<PrivateRoute><Profile /></PrivateRoute>} />
           </Routes>
         </Layout>
       </Router>
