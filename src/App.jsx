@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import Catalog from "./pages/Catalog";
 import AnimePage from "./pages/AnimePage";
+import CharacterPage from "./pages/CharacterPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
@@ -14,32 +15,16 @@ export function useAuth() { return useContext(AuthContext); }
 
 function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    try {
-      const stored = localStorage.getItem("anime_user");
-      if (!stored) return null;
-      const parsed = JSON.parse(stored);
-      // Убираем token из объекта user для отображения
-      const { token, ...userOnly } = parsed;
-      return userOnly;
-    } catch { return null; }
+    try { const s=localStorage.getItem("anime_user"); if(!s) return null; const {token,...u}=JSON.parse(s); return u; }
+    catch { return null; }
   });
-
-  const login = (userData) => setUser(userData);
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("anime_user");
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const login  = u => setUser(u);
+  const logout = () => { setUser(null); localStorage.removeItem("anime_user"); };
+  return <AuthContext.Provider value={{user,login,logout}}>{children}</AuthContext.Provider>;
 }
 
-function PrivateRoute({ children }) {
-  const { user } = useAuth();
+function Private({children}) {
+  const {user}=useAuth();
   return user ? children : <Navigate to="/login" replace />;
 }
 
@@ -49,12 +34,13 @@ export default function App() {
       <Router>
         <Layout>
           <Routes>
-            <Route path="/"          element={<Home />} />
-            <Route path="/catalog"   element={<Catalog />} />
-            <Route path="/anime/:id" element={<AnimePage />} />
-            <Route path="/login"     element={<Login />} />
-            <Route path="/register"  element={<Register />} />
-            <Route path="/profile"   element={<PrivateRoute><Profile /></PrivateRoute>} />
+            <Route path="/"              element={<Home />} />
+            <Route path="/catalog"       element={<Catalog />} />
+            <Route path="/anime/:id"     element={<AnimePage />} />
+            <Route path="/character/:id" element={<CharacterPage />} />
+            <Route path="/login"         element={<Login />} />
+            <Route path="/register"      element={<Register />} />
+            <Route path="/profile"       element={<Private><Profile /></Private>} />
           </Routes>
         </Layout>
       </Router>

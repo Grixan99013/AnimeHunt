@@ -1,5 +1,4 @@
 // server/routes/user.js
-// /api/user/* — данные текущего пользователя
 const router = require("express").Router();
 const pool   = require("../db");
 const jwt    = require("jsonwebtoken");
@@ -11,39 +10,68 @@ function requireAuth(req, res, next) {
   try {
     req.userId = jwt.verify(auth.slice(7), process.env.JWT_SECRET).id;
     next();
-  } catch {
-    res.status(401).json({ error: "Токен недействителен" });
-  }
+  } catch { res.status(401).json({ error: "Токен недействителен" }); }
 }
 
-// GET /api/user/comments — мои комментарии
+// GET /api/user/comments
 router.get("/comments", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
-        c.id, c.body, c.created_at,
-        a.title AS anime_title, a.id AS anime_id
+      SELECT c.id, c.body, c.created_at, a.title AS anime_title, a.id AS anime_id
       FROM comments c
       JOIN anime a ON a.id = c.anime_id
-      WHERE c.user_id = $1 AND c.is_deleted = FALSE
+      WHERE c.user_id=$1 AND c.is_deleted=FALSE
       ORDER BY c.created_at DESC
     `, [req.userId]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/user/ratings — мои оценки
+// GET /api/user/ratings
 router.get("/ratings", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT ur.score, ur.rated_at, a.id, a.title, a.poster_url
       FROM user_ratings ur
       JOIN anime a ON a.id = ur.anime_id
-      WHERE ur.user_id = $1
+      WHERE ur.user_id=$1
       ORDER BY ur.rated_at DESC
     `, [req.userId]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/user/favorites — избранные персонажи
+router.get("/favorites", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        c.id, c.name, c.name_jp, c.role, c.image_url, c.description,
+        a.id AS anime_id, a.title AS anime_title, a.poster_url AS anime_poster,
+        f.added_at
+      FROM favorites f
+      JOIN characters c ON c.id = f.character_id
+      JOIN anime a ON a.id = c.anime_id
+      WHERE f.user_id=$1
+      ORDER BY f.added_at DESC
+    `, [req.userId]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
+
+// GET /api/user/reviews — мои рецензии
+router.get("/reviews", requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT rv.id, rv.score, rv.title, rv.body, rv.created_at,
+             a.id AS anime_id, a.title AS anime_title, a.poster_url AS anime_poster
+      FROM reviews rv
+      JOIN anime a ON a.id=rv.anime_id
+      WHERE rv.user_id=$1 AND rv.is_deleted=FALSE
+      ORDER BY rv.created_at DESC
+    `, [req.userId]);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
