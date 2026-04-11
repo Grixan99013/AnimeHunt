@@ -27,21 +27,21 @@ export const fetchGenres  = ()      => request("/anime/genres");
 export const fetchStudios = ()      => request("/anime/studios");
 export const rateAnime    = (id,sc) => request(`/anime/${id}/rate`,{method:"POST",body:JSON.stringify({score:sc})});
 export const postComment  = (id,body,pid=null) => request(`/anime/${id}/comments`,{method:"POST",body:JSON.stringify({body,parent_id:pid})});
-
-// ── Рецензии ─────────────────────────────────────────────────
 export const postReview   = (animeId, data) => request(`/anime/${animeId}/reviews`,{method:"POST",body:JSON.stringify(data)});
 export const deleteReview = (animeId)       => request(`/anime/${animeId}/reviews`,{method:"DELETE"});
 export const likeReview   = (reviewId)      => request(`/anime/reviews/${reviewId}/like`,{method:"POST"});
 
 // ── Персонажи ─────────────────────────────────────────────────
-export const fetchCharacter       = (id)   => request(`/characters/${id}`);
-export const toggleFavorite       = (id)   => request(`/characters/${id}/favorite`,{method:"POST"});
+export const fetchCharacter       = (id)            => request(`/characters/${id}`);
+export const toggleFavorite       = (id)            => request(`/characters/${id}/favorite`,{method:"POST"});
 export const postCharacterComment = (id,b,pid=null) => request(`/characters/${id}/comments`,{method:"POST",body:JSON.stringify({body:b,parent_id:pid})});
+export const shipCharacter        = (id, shippedWith) => request(`/characters/${id}/ship`,{method:"POST",body:JSON.stringify({shipped_with:shippedWith})});
+export const unshipCharacter      = (id)            => request(`/characters/${id}/ship`,{method:"DELETE"});
 
 // ── Watchlist ─────────────────────────────────────────────────
-export const fetchWatchlist       = ()                => request("/watchlist");
-export const upsertWatchlist      = (id,st,ep=0)      => request(`/watchlist/${id}`,{method:"PUT",body:JSON.stringify({status:st,episodes_watched:ep})});
-export const removeFromWatchlist  = (id)              => request(`/watchlist/${id}`,{method:"DELETE"});
+export const fetchWatchlist       = ()           => request("/watchlist");
+export const upsertWatchlist      = (id,st,ep=0) => request(`/watchlist/${id}`,{method:"PUT",body:JSON.stringify({status:st,episodes_watched:ep})});
+export const removeFromWatchlist  = (id)         => request(`/watchlist/${id}`,{method:"DELETE"});
 
 // ── Пользователь ──────────────────────────────────────────────
 export const fetchMyComments  = () => request("/user/comments");

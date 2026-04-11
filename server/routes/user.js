@@ -45,15 +45,16 @@ router.get("/ratings", requireAuth, async (req, res) => {
 router.get("/favorites", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
+      SELECT DISTINCT ON (c.id)
         c.id, c.name, c.name_jp, c.role, c.image_url, c.description,
         a.id AS anime_id, a.title AS anime_title, a.poster_url AS anime_poster,
         f.added_at
       FROM favorites f
       JOIN characters c ON c.id = f.character_id
-      JOIN anime a ON a.id = c.anime_id
+      JOIN character_appearances ca ON ca.character_id = c.id
+      JOIN anime a ON a.id = ca.anime_id
       WHERE f.user_id=$1
-      ORDER BY f.added_at DESC
+      ORDER BY c.id, a.aired_from ASC NULLS LAST
     `, [req.userId]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
