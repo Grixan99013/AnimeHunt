@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import Catalog from "./pages/Catalog";
 import AnimePage from "./pages/AnimePage";
 import CharacterPage from "./pages/CharacterPage";
+import CharacterCatalog from "./pages/CharacterCatalog";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
@@ -23,8 +24,8 @@ function AuthProvider({ children }) {
   return <AuthContext.Provider value={{user,login,logout}}>{children}</AuthContext.Provider>;
 }
 
-function Private({children}) {
-  const {user}=useAuth();
+function Private({ children }) {
+  const { user } = useAuth();
   return user ? children : <Navigate to="/login" replace />;
 }
 
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/"              element={<Home />} />
             <Route path="/catalog"       element={<Catalog />} />
             <Route path="/anime/:id"     element={<AnimePage />} />
+            <Route path="/characters"    element={<CharacterCatalog />} />
             <Route path="/character/:id" element={<CharacterPage />} />
             <Route path="/login"         element={<Login />} />
             <Route path="/register"      element={<Register />} />

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../App";
+import CommentBlock from "../components/CommentBlock";
 import {
   fetchAnime, rateAnime, postComment, postReview, deleteReview, likeReview,
   upsertWatchlist, removeFromWatchlist, fetchWatchlist,
@@ -32,10 +33,7 @@ export default function AnimePage() {
   const [epInput, setEpInput]             = useState(0);
 
   // Комментарии
-  const [comments, setComments]               = useState([]);
-  const [commentText, setCommentText]         = useState("");
-  const [commentLoading, setCommentLoading]   = useState(false);
-  const [showAllComments, setShowAllComments] = useState(false);
+  const [comments, setComments] = useState([]);
 
   // Рецензии
   const [reviews, setReviews]           = useState([]);
@@ -93,13 +91,7 @@ export default function AnimePage() {
     if (watchEntry && user) try { await upsertWatchlist(id, watchEntry.status, clamped); } catch {}
   };
 
-  const handleComment = async e => {
-    e.preventDefault();
-    if (!commentText.trim() || !user) return;
-    setCommentLoading(true);
-    try { const c = await postComment(id, commentText.trim()); setComments(p => [c, ...p]); setCommentText(""); }
-    catch (e) { alert(e.message); } finally { setCommentLoading(false); }
-  };
+
 
   const handleReviewSubmit = async e => {
     e.preventDefault();
@@ -148,9 +140,7 @@ export default function AnimePage() {
   const genres       = Array.isArray(anime.genres) ? anime.genres.filter(Boolean) : [];
   const series       = anime.series;
 
-  // Сколько комментариев показывать сразу
-  const COMMENTS_PREVIEW = 3;
-  const visibleComments  = showAllComments ? comments : comments.slice(0, COMMENTS_PREVIEW);
+
 
   return (
     <div className="space-y-8">
@@ -430,72 +420,15 @@ export default function AnimePage() {
           )}
 
           {/* ── Комментарии ── */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-white">
-                Комментарии
-                {comments.length > 0 && (
-                  <span className="ml-2 text-sm font-normal" style={{ color: "#6b7280" }}>({comments.length})</span>
-                )}
-              </h3>
-            </div>
-
-            {/* Форма */}
-            {user ? (
-              <form onSubmit={handleComment} className="space-y-2">
-                <textarea value={commentText} onChange={e => setCommentText(e.target.value)}
-                  placeholder="Поделитесь впечатлениями…" rows={3}
-                  className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none resize-none"
-                  style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.1)" }}
-                  onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.4)"}
-                  onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.1)"} />
-                <button type="submit" disabled={!commentText.trim() || commentLoading}
-                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white"
-                  style={{ background: commentText.trim() ? "linear-gradient(to right,#7c3aed,#a21caf)" : "rgba(255,255,255,0.1)", opacity: commentText.trim() ? 1 : 0.5, cursor: commentText.trim() ? "pointer" : "not-allowed", border: "none" }}>
-                  {commentLoading ? "Отправка…" : "Отправить"}
-                </button>
-              </form>
-            ) : (
-              <div className="rounded-xl px-4 py-3 text-sm" style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)", color: "#6b7280" }}>
-                <Link to="/login" style={{ color: "#a78bfa" }}>Войдите</Link>, чтобы оставить комментарий.
-              </div>
-            )}
-
-            {/* Список */}
-            {comments.length === 0 ? (
-              <p className="text-sm py-4" style={{ color: "#4b5563" }}>Комментариев пока нет. Будьте первым!</p>
-            ) : (
-              <div className="space-y-2">
-                {visibleComments.map(c => (
-                  <div key={c.id} className="rounded-xl px-4 py-3"
-                    style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                        style={{ background: "linear-gradient(135deg,#7c3aed,#a21caf)" }}>
-                        {c.username?.[0]?.toUpperCase() || "?"}
-                      </span>
-                      <span className="text-sm font-medium text-white">{c.username}</span>
-                      <span className="text-xs ml-auto" style={{ color: "#4b5563" }}>
-                        {new Date(c.created_at).toLocaleDateString("ru-RU")}
-                      </span>
-                    </div>
-                    <p className="text-sm" style={{ color: "#d1d5db" }}>{c.body}</p>
-                  </div>
-                ))}
-
-                {/* Кнопка «показать больше» */}
-                {comments.length > COMMENTS_PREVIEW && (
-                  <button onClick={() => setShowAllComments(!showAllComments)}
-                    className="w-full py-2.5 rounded-xl text-sm font-medium transition-all"
-                    style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#9ca3af", cursor: "pointer" }}>
-                    {showAllComments
-                      ? "Свернуть"
-                      : `Показать ещё ${comments.length - COMMENTS_PREVIEW} комментари${comments.length - COMMENTS_PREVIEW === 1 ? "й" : "ев"}`}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          <CommentBlock
+            comments={comments}
+            onPost={async ({ body, image_url, parent_id }) => {
+              const c = await postComment(id, body, parent_id, image_url);
+              return c;
+            }}
+            placeholder="Поделитесь впечатлениями об аниме…"
+            previewCount={5}
+          />
         </div>
       )}
 

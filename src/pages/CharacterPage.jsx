@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../App";
+import CommentBlock from "../components/CommentBlock";
 import {
   fetchCharacter, toggleFavorite, postCharacterComment,
   shipCharacter, unshipCharacter,
@@ -20,9 +21,7 @@ export default function CharacterPage() {
   const [favLoading, setFavLoading] = useState(false);
 
   // Комментарии
-  const [comments, setComments]             = useState([]);
-  const [commentText, setCommentText]       = useState("");
-  const [commentLoading, setCommentLoading] = useState(false);
+  const [comments, setComments] = useState([]);
 
   // Шипперинг
   const [myShip, setMyShip]           = useState(null);   // { shipped_with, shipped_name, shipped_img }
@@ -61,17 +60,7 @@ export default function CharacterPage() {
   };
 
   // ── Комментарий ─────────────────────────────────────────────
-  const handleComment = async e => {
-    e.preventDefault();
-    if (!commentText.trim() || !user) return;
-    setCommentLoading(true);
-    try {
-      const newC = await postCharacterComment(id, commentText.trim());
-      setComments(prev => [newC, ...prev]);
-      setCommentText("");
-    } catch (e) { alert(e.message); }
-    finally { setCommentLoading(false); }
-  };
+
 
   // ── Шипперинг ───────────────────────────────────────────────
   const handleShip = async () => {
@@ -486,61 +475,17 @@ export default function CharacterPage() {
       </div>
 
       {/* ── Комментарии ────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
+      <div className="rounded-2xl p-6"
         style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)" }}>
-        <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <h2 className="text-base font-bold text-white mb-0.5">Комментарии</h2>
-          <p className="text-xs" style={{ color: "#6b7280" }}>Обсуждение персонажа</p>
-        </div>
-        <div className="px-6 py-5 space-y-4">
-          {user ? (
-            <form onSubmit={handleComment} className="space-y-3">
-              <textarea value={commentText} onChange={e => setCommentText(e.target.value)}
-                placeholder="Ваши мысли о персонаже…" rows={3}
-                className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none resize-none"
-                style={{ backgroundColor: "#0d0f14", border: "1px solid rgba(255,255,255,0.1)" }}
-                onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.4)"}
-                onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.1)"} />
-              <button type="submit" disabled={!commentText.trim() || commentLoading}
-                className="px-5 py-2 rounded-xl text-sm font-semibold text-white"
-                style={{
-                  background: commentText.trim() ? "linear-gradient(to right,#7c3aed,#a21caf)" : "rgba(255,255,255,0.1)",
-                  opacity: commentText.trim() ? 1 : 0.5,
-                  cursor: commentText.trim() ? "pointer" : "not-allowed",
-                  border: "none",
-                }}>
-                {commentLoading ? "Отправка…" : "Отправить"}
-              </button>
-            </form>
-          ) : (
-            <div className="rounded-xl px-4 py-3 text-sm"
-              style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "#6b7280" }}>
-              <Link to="/login" style={{ color: "#a78bfa" }}>Войдите</Link>, чтобы комментировать.
-            </div>
-          )}
-          {comments.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{ color: "#4b5563" }}>Комментариев пока нет.</p>
-          ) : (
-            <div className="space-y-2">
-              {comments.map(c => (
-                <div key={c.id} className="rounded-xl px-4 py-3"
-                  style={{ backgroundColor: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                      style={{ background: "linear-gradient(135deg,#7c3aed,#a21caf)" }}>
-                      {c.username?.[0]?.toUpperCase() || "?"}
-                    </span>
-                    <span className="text-sm font-medium text-white">{c.username}</span>
-                    <span className="text-xs ml-auto" style={{ color: "#4b5563" }}>
-                      {new Date(c.created_at).toLocaleDateString("ru-RU")}
-                    </span>
-                  </div>
-                  <p className="text-sm" style={{ color: "#d1d5db" }}>{c.body}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CommentBlock
+          comments={comments}
+          onPost={async ({ body, image_url, parent_id }) => {
+            const c = await postCharacterComment(id, body, parent_id, image_url);
+            return c;
+          }}
+          placeholder="Ваши мысли о персонаже…"
+          previewCount={5}
+        />
       </div>
 
       {/* Назад */}

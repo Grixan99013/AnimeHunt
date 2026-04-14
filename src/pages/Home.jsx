@@ -66,28 +66,6 @@ export default function Home() {
         </section>
       )}
 
-      {/* Поиск */}
-      <section>
-        <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto">
-          <div className="relative">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: "#6b7280" }}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Поиск аниме по названию…"
-              className="w-full rounded-2xl py-4 pl-12 pr-32 text-sm text-white outline-none"
-              style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.1)" }}
-              onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.5)"}
-              onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.1)"} />
-            <button type="submit"
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2 rounded-xl text-white text-sm font-semibold"
-              style={{ background: "linear-gradient(to right, #7c3aed, #a21caf)" }}>Найти</button>
-          </div>
-        </form>
-      </section>
-
       {/* Новинки */}
       {newReleases.length > 0 && (
         <section>

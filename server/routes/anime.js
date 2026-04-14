@@ -177,12 +177,15 @@ router.get("/:id", optionalAuth, async (req, res) => {
       `, [id]),
 
       pool.query(`
-        SELECT c.id, c.body, c.created_at, c.parent_id,
-               u.username, u.id AS user_id
+        SELECT c.id, c.body, c.created_at, c.parent_id, c.image_url,
+               u.username, u.id AS user_id,
+               pu.username AS parent_username
         FROM comments c
         JOIN users u ON u.id = c.user_id
+        LEFT JOIN comments pc ON pc.id = c.parent_id
+        LEFT JOIN users pu ON pu.id = pc.user_id
         WHERE c.anime_id = $1 AND c.is_deleted = FALSE
-        ORDER BY c.created_at DESC
+        ORDER BY COALESCE(c.parent_id, c.id) ASC, c.created_at ASC
       `, [id]),
 
       pool.query(`
@@ -245,14 +248,27 @@ router.post("/:id/rate", requireAuth, async (req, res) => {
 router.post("/:id/comments", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { body, parent_id } = req.body;
-    if (!body?.trim()) return res.status(400).json({ error: "Пустой комментарий" });
+    const { body, parent_id, image_url } = req.body;
+    if (!body?.trim() && !image_url) return res.status(400).json({ error: "Пустой комментарий" });
+
+    // Получаем username родительского комментария (если есть)
+    let parentUsername = null;
+    if (parent_id) {
+      const pq = await pool.query(
+        "SELECT u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.id=$1",
+        [parent_id]
+      );
+      parentUsername = pq.rows[0]?.username || null;
+    }
+
     const r = await pool.query(`
-      INSERT INTO comments (user_id, anime_id, body, parent_id) VALUES ($1,$2,$3,$4)
-      RETURNING id, body, created_at, parent_id
-    `, [req.userId, id, body.trim(), parent_id || null]);
+      INSERT INTO comments (user_id, anime_id, body, parent_id, image_url)
+      VALUES ($1,$2,$3,$4,$5)
+      RETURNING id, body, created_at, parent_id, image_url
+    `, [req.userId, id, (body || "").trim(), parent_id || null, image_url || null]);
+
     const u = await pool.query("SELECT username FROM users WHERE id=$1", [req.userId]);
-    res.json({ ...r.rows[0], username: u.rows[0].username, user_id: req.userId });
+    res.json({ ...r.rows[0], username: u.rows[0].username, user_id: req.userId, parent_username: parentUsername });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

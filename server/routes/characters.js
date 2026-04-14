@@ -18,6 +18,60 @@ function requireAuth(req, res, next) {
   catch { res.status(401).json({ error: "Токен недействителен" }); }
 }
 
+// ── GET /api/characters — каталог персонажей ─────────────────
+router.get("/", optionalAuth, async (req, res) => {
+  try {
+    const { q, gender, sort = "favorites", limit = 60, offset = 0 } = req.query;
+
+    const conds  = ["1=1"];
+    const params = [];
+    let i = 1;
+
+    if (q) {
+      conds.push(`(c.name ILIKE $${i} OR c.name_jp ILIKE $${i})`);
+      params.push(`%${q}%`); i++;
+    }
+    if (gender && gender !== "all") {
+      conds.push(`c.gender = $${i}`);
+      params.push(gender); i++;
+    }
+
+    let orderBy = "favorites_count DESC NULLS LAST, c.name ASC";
+    if (sort === "name")   orderBy = "c.name ASC";
+    if (sort === "newest") orderBy = "c.id DESC";
+
+    params.push(Number(limit), Number(offset));
+    const li = i++, oi = i++;
+
+    const sql = `
+      SELECT
+        c.id, c.name, c.name_jp, c.role, c.image_url,
+        c.gender, c.age, c.abilities,
+        COUNT(DISTINCT f.user_id)::int AS favorites_count,
+        (SELECT ca2.anime_id FROM character_appearances ca2
+         WHERE ca2.character_id = c.id ORDER BY ca2.anime_id ASC LIMIT 1) AS primary_anime_id,
+        (SELECT a2.title FROM anime a2
+         JOIN character_appearances ca3 ON ca3.anime_id = a2.id
+         WHERE ca3.character_id = c.id ORDER BY ca3.anime_id ASC LIMIT 1) AS primary_anime_title,
+        (SELECT a2.poster_url FROM anime a2
+         JOIN character_appearances ca4 ON ca4.anime_id = a2.id
+         WHERE ca4.character_id = c.id ORDER BY ca4.anime_id ASC LIMIT 1) AS primary_anime_poster
+      FROM characters c
+      LEFT JOIN favorites f ON f.character_id = c.id
+      WHERE ${conds.join(" AND ")}
+      GROUP BY c.id
+      ORDER BY ${orderBy}
+      LIMIT $${li} OFFSET $${oi}
+    `;
+
+    const result = await pool.query(sql, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/characters/:id ───────────────────────────────────
 router.get("/:id", optionalAuth, async (req, res) => {
   try {
@@ -62,12 +116,15 @@ router.get("/:id", optionalAuth, async (req, res) => {
       `, [id]),
 
       pool.query(`
-        SELECT cc.id, cc.body, cc.created_at, cc.parent_id,
-               u.username, u.id AS user_id
+        SELECT cc.id, cc.body, cc.created_at, cc.parent_id, cc.image_url,
+               u.username, u.id AS user_id,
+               pu.username AS parent_username
         FROM character_comments cc
         JOIN users u ON u.id = cc.user_id
+        LEFT JOIN character_comments pc ON pc.id = cc.parent_id
+        LEFT JOIN users pu ON pu.id = pc.user_id
         WHERE cc.character_id = $1 AND cc.is_deleted = FALSE
-        ORDER BY cc.created_at DESC
+        ORDER BY COALESCE(cc.parent_id, cc.id) ASC, cc.created_at ASC
       `, [id]),
 
       req.userId
@@ -211,14 +268,25 @@ router.post("/:id/favorite", requireAuth, async (req, res) => {
 router.post("/:id/comments", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { body, parent_id } = req.body;
-    if (!body?.trim()) return res.status(400).json({ error: "Пустой комментарий" });
+    const { body, parent_id, image_url } = req.body;
+    if (!body?.trim() && !image_url) return res.status(400).json({ error: "Пустой комментарий" });
+
+    let parentUsername = null;
+    if (parent_id) {
+      const pq = await pool.query(
+        "SELECT u.username FROM character_comments c JOIN users u ON u.id=c.user_id WHERE c.id=$1",
+        [parent_id]
+      );
+      parentUsername = pq.rows[0]?.username || null;
+    }
+
     const r = await pool.query(`
-      INSERT INTO character_comments (user_id, character_id, body, parent_id)
-      VALUES ($1,$2,$3,$4) RETURNING id, body, created_at, parent_id
-    `, [req.userId, id, body.trim(), parent_id || null]);
+      INSERT INTO character_comments (user_id, character_id, body, parent_id, image_url)
+      VALUES ($1,$2,$3,$4,$5) RETURNING id, body, created_at, parent_id, image_url
+    `, [req.userId, id, (body || "").trim(), parent_id || null, image_url || null]);
+
     const u = await pool.query("SELECT username FROM users WHERE id=$1", [req.userId]);
-    res.json({ ...r.rows[0], username: u.rows[0].username, user_id: req.userId });
+    res.json({ ...r.rows[0], username: u.rows[0].username, user_id: req.userId, parent_username: parentUsername });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
