@@ -1,16 +1,29 @@
 // src/pages/AnimePage.jsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../App";
 import CommentBlock from "../components/CommentBlock";
+import ScreenshotsTab from "../components/ScreenshotsTab";
+import VideosTab from "../components/VideosTab";
+import AnimeForm from "../components/AnimeForm";
+import AddCharacterToAnimeForm from "../components/AddCharacterToAnimeForm";
 import {
   fetchAnime, rateAnime, postComment, postReview, deleteReview, likeReview,
-  upsertWatchlist, removeFromWatchlist, fetchWatchlist,
+  upsertWatchlist, removeFromWatchlist, fetchWatchlist, fetchGenres, fetchStudios,
   STATUS_LABELS, STATUS_STYLES, TYPE_LABELS, WATCH_STATUSES, ROLE_LABELS,
 } from "../api/api";
 
+// Возрастные рейтинги
+const AGE_RATING_STYLES = {
+  "G":     { color: "#34d399", bg: "rgba(16,185,129,0.12)",  desc: "Все возраста" },
+  "PG":    { color: "#60a5fa", bg: "rgba(59,130,246,0.12)",  desc: "Рекомендован родительский контроль" },
+  "PG-13": { color: "#fbbf24", bg: "rgba(245,158,11,0.12)",  desc: "С 13 лет" },
+  "R-17":  { color: "#f97316", bg: "rgba(249,115,22,0.12)",  desc: "С 17 лет" },
+  "R+":    { color: "#f87171", bg: "rgba(239,68,68,0.12)",   desc: "Только для взрослых" },
+};
+
 // Серия и Комментарии теперь внутри Обзора — не отдельные табы
-const TABS = ["Обзор", "Персонажи", "Авторы", "Рецензии"];
+const TABS = ["Обзор", "Персонажи", "Авторы", "Рецензии", "Кадры", "Видео"];
 
 export default function AnimePage() {
   const { id }   = useParams();
@@ -42,9 +55,15 @@ export default function AnimePage() {
   const [reviewForm, setReviewForm]     = useState({ score: 8, title: "", body: "" });
   const [reviewLoading, setReviewLoading] = useState(false);
   const reviewFormRef = useRef(null);
+  const [scoreDist, setScoreDist]       = useState([]);
+  const [showAdminEdit, setShowAdminEdit] = useState(false);
+  const [adminGenres, setAdminGenres]   = useState([]);
+  const [adminStudios, setAdminStudios] = useState([]);
+  const [showAddCharacter, setShowAddCharacter] = useState(false);
 
-  useEffect(() => {
+  const loadAnime = useCallback(() => {
     setLoading(true);
+    setError("");
     fetchAnime(id).then(d => {
       setAnime(d);
       setMyRating(d.my_rating || null);
@@ -52,10 +71,25 @@ export default function AnimePage() {
       setRatingCount(d.rating_count || 0);
       setComments(d.comments || []);
       setReviews(d.reviews || []);
+      setScoreDist(d.score_distribution || []);
       setMyReview(d.my_review || null);
       if (d.my_review) setReviewForm({ score: d.my_review.score, title: d.my_review.title, body: d.my_review.body });
     }).catch(e => setError(e.message)).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => { loadAnime(); }, [loadAnime]);
+
+  useEffect(() => {
+    setShowAdminEdit(false);
+    setShowAddCharacter(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (user?.role_id !== 1) return;
+    Promise.all([fetchGenres(), fetchStudios()])
+      .then(([g, s]) => { setAdminGenres(g); setAdminStudios(s); })
+      .catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -196,6 +230,44 @@ export default function AnimePage() {
           </div>
         </div>
       </div>
+
+      {user?.role_id === 1 && (
+        <div className="flex flex-wrap items-center justify-end gap-2 -mt-2">
+          {!showAdminEdit ? (
+            <button type="button" onClick={() => setShowAdminEdit(true)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold"
+              style={{ background: "rgba(139,92,246,0.2)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.35)", cursor: "pointer" }}>
+              Редактировать
+            </button>
+          ) : (
+            <button type="button" onClick={() => setShowAdminEdit(false)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold"
+              style={{ background: "rgba(255,255,255,0.05)", color: "#9ca3af", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer" }}>
+              Закрыть форму
+            </button>
+          )}
+        </div>
+      )}
+
+      {user?.role_id === 1 && showAdminEdit && anime && (
+        <div className="rounded-2xl p-6 md:p-8"
+          style={{ backgroundColor: "#13151c", border: "1px solid rgba(139,92,246,0.25)" }}>
+          <h2 className="text-lg font-bold text-white mb-4">Редактирование тайтла</h2>
+          <AnimeForm
+            key={String(anime.id) + (anime.updated_at || "")}
+            animeId={anime.id}
+            initial={anime}
+            genreList={adminGenres}
+            studioList={adminStudios}
+            onAfterSave={() => fetchStudios().then(setAdminStudios)}
+            onSaved={() => {
+              setShowAdminEdit(false);
+              loadAnime();
+            }}
+            onCancel={() => setShowAdminEdit(false)}
+          />
+        </div>
+      )}
 
       {/* ── Watchlist + Оценка ──────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -339,21 +411,60 @@ export default function AnimePage() {
               )}
             </div>
             {/* Инфо-сайдбар */}
-            <div className="rounded-2xl overflow-hidden" style={{ alignSelf: "start", backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)" }}>
-              {[
-                ["Статус",     STATUS_LABELS[anime.status] || anime.status],
-                ["Тип",        TYPE_LABELS[anime.type] || anime.type],
-                ["Эпизоды",    anime.episodes ?? "?"],
-                ["Длит./эп.",  anime.duration_min ? `${anime.duration_min} мин` : "—"],
-                ["Трансляция", `${anime.aired_from ? String(anime.aired_from).slice(0, 4) : "?"} – ${anime.aired_to ? String(anime.aired_to).slice(0, 4) : "?"}`],
-                ["Студия",     anime.studio_name || "—"],
-              ].map(([l, v]) => (
-                <div key={l} className="flex justify-between items-center px-4 py-2.5 text-sm"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <span style={{ color: "#6b7280" }}>{l}</span>
-                  <span className="font-medium text-white text-right ml-4">{v}</span>
+            <div className="space-y-4" style={{ alignSelf: "start" }}>
+              <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)" }}>
+                {[
+                  ["Статус",     STATUS_LABELS[anime.status] || anime.status],
+                  ["Тип",        TYPE_LABELS[anime.type] || anime.type],
+                  ["Эпизоды",    anime.episodes ?? "?"],
+                  ["Длит./эп.",  anime.duration_min ? `${anime.duration_min} мин` : "—"],
+                  ["Трансляция", `${anime.aired_from ? String(anime.aired_from).slice(0, 4) : "?"} – ${anime.aired_to ? String(anime.aired_to).slice(0, 4) : "?"}`],
+                  ["Студия",     anime.studio_name || "—"],
+                ].map(([l, v]) => (
+                  <div key={l} className="flex justify-between items-center px-4 py-2.5 text-sm"
+                    style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <span style={{ color: "#6b7280" }}>{l}</span>
+                    <span className="font-medium text-white text-right ml-4">{v}</span>
+                  </div>
+                ))}
+                {/* Возрастной рейтинг */}
+                {anime.age_rating && (() => {
+                  const s = AGE_RATING_STYLES[anime.age_rating] || { color: "#9ca3af", bg: "rgba(255,255,255,0.05)", desc: "" };
+                  return (
+                    <div className="flex justify-between items-center px-4 py-2.5 text-sm"
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <span style={{ color: "#6b7280" }}>Рейтинг</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-bold px-2 py-0.5 rounded-lg text-xs"
+                          style={{ backgroundColor: s.bg, color: s.color }}>
+                          {anime.age_rating}
+                        </span>
+                        <span className="text-xs" style={{ color: "#6b7280" }}>{s.desc}</span>
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Темы */}
+              {anime.themes && anime.themes.length > 0 && (
+                <div className="rounded-2xl p-4" style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "#6b7280" }}>Темы</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {anime.themes.map(t => (
+                      <span key={t} className="px-2.5 py-1 rounded-full text-xs"
+                        style={{ backgroundColor: "rgba(99,102,241,0.12)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.2)" }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {/* Диаграмма оценок */}
+              {scoreDist.length > 0 && scoreDist.some(s => s.count > 0) && (
+                <ScoreChart dist={scoreDist} avgRating={avgRating} ratingCount={ratingCount} />
+              )}
             </div>
           </div>
 
@@ -434,27 +545,64 @@ export default function AnimePage() {
 
       {/* ── Персонажи ─────────────────────────────────────── */}
       {activeTab === "Персонажи" && (
-        !anime.characters?.length ? <Empty text="Персонажи не добавлены." /> : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {anime.characters.map(c => (
-              <Link key={c.id} to={`/character/${c.id}`}
-                className="group flex flex-col rounded-xl p-4 transition-all"
-                style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)", textDecoration: "none" }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"}>
-                <div className="w-16 h-16 rounded-full overflow-hidden mb-3 mx-auto"
-                  style={{ backgroundColor: "#1a1d26", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  {c.image_url
-                    ? <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: "#4b5563" }}>{c.name[0]}</div>}
+        <div className="space-y-6">
+          {user?.role_id === 1 && (
+            <div className="rounded-2xl p-5" style={{ backgroundColor: "#13151c", border: "1px solid rgba(139,92,246,0.2)" }}>
+              {!showAddCharacter ? (
+                <button type="button" onClick={() => setShowAddCharacter(true)}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ background: "rgba(139,92,246,0.2)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.35)", cursor: "pointer" }}>
+                  + Добавить персонажа к этому тайтлу
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-white">Новая связь с тайтлом</h3>
+                    <button type="button" onClick={() => setShowAddCharacter(false)}
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{ color: "#9ca3af", background: "rgba(255,255,255,0.06)", border: "none", cursor: "pointer" }}>
+                      Свернуть
+                    </button>
+                  </div>
+                  <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
+                    Один персонаж может участвовать в нескольких аниме: создайте нового или привяжите уже существующего из базы — добавится только появление в этом тайтле.
+                  </p>
+                  <AddCharacterToAnimeForm
+                    animeId={Number(id)}
+                    onSuccess={() => {
+                      setShowAddCharacter(false);
+                      loadAnime();
+                    }}
+                    onCancel={() => setShowAddCharacter(false)}
+                  />
                 </div>
-                <p className="font-semibold text-sm text-white text-center group-hover:text-violet-300 transition-colors">{c.name}</p>
-                {c.name_jp && <p className="text-xs text-center mt-0.5" style={{ color: "#4b5563" }}>{c.name_jp}</p>}
-                <p className="text-xs text-center mt-1" style={{ color: "#6b7280" }}>{ROLE_LABELS[c.role] || c.role}</p>
-              </Link>
-            ))}
-          </div>
-        )
+              )}
+            </div>
+          )}
+          {!anime.characters?.length ? (
+            <Empty text="Персонажи не добавлены." />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {anime.characters.map(c => (
+                <Link key={c.id} to={`/character/${c.id}`}
+                  className="group flex flex-col rounded-xl p-4 transition-all"
+                  style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)", textDecoration: "none" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"; }}>
+                  <div className="w-16 h-16 rounded-full overflow-hidden mb-3 mx-auto"
+                    style={{ backgroundColor: "#1a1d26", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    {c.image_url
+                      ? <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: "#4b5563" }}>{c.name[0]}</div>}
+                  </div>
+                  <p className="font-semibold text-sm text-white text-center group-hover:text-violet-300 transition-colors">{c.name}</p>
+                  {c.name_jp && <p className="text-xs text-center mt-0.5" style={{ color: "#4b5563" }}>{c.name_jp}</p>}
+                  <p className="text-xs text-center mt-1" style={{ color: "#6b7280" }}>{ROLE_LABELS[c.role_in_anime] || ROLE_LABELS[c.role] || c.role}</p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Авторы ────────────────────────────────────────── */}
@@ -471,6 +619,16 @@ export default function AnimePage() {
             ))}
           </div>
         )
+      )}
+
+      {/* ── Кадры ─────────────────────────────────────────── */}
+      {activeTab === "Кадры" && (
+        <ScreenshotsTab animeId={id} />
+      )}
+
+      {/* ── Видео ──────────────────────────────────────────── */}
+      {activeTab === "Видео" && (
+        <VideosTab animeId={id} />
       )}
 
       {/* ── Рецензии ──────────────────────────────────────── */}
@@ -635,6 +793,98 @@ function ReviewCard({ r, user, onLike, highlight }) {
     </div>
   );
 }
+
+// ── Компонент диаграммы оценок ────────────────────────────────
+function ScoreChart({ dist, avgRating, ratingCount }) {
+  const maxCount = Math.max(...dist.map(s => s.count), 1);
+  const total    = dist.reduce((s,d)=>s+d.count, 0);
+
+  // Цвет полосы по оценке
+  const barColor = (score) => {
+    if (score >= 9) return "#34d399";
+    if (score >= 7) return "#fbbf24";
+    if (score >= 5) return "#f97316";
+    return "#f87171";
+  };
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)" }}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Статистика оценок</p>
+        <div className="text-right">
+          <span className="text-xl font-black" style={{ color: "#fbbf24" }}>{avgRating}</span>
+          <span className="text-xs ml-1" style={{ color: "#6b7280" }}>/ 10</span>
+          <p className="text-xs" style={{ color: "#4b5563" }}>{ratingCount} оценок</p>
+        </div>
+      </div>
+
+      {/* Гистограмма */}
+      <div className="space-y-1.5">
+        {[...dist].reverse().map(({ score, count, pct }) => (
+          <div key={score} className="flex items-center gap-2">
+            <span className="text-xs font-semibold w-4 text-right flex-shrink-0"
+              style={{ color: barColor(score) }}>{score}</span>
+            <div className="flex-1 rounded-full overflow-hidden" style={{ height: "8px", backgroundColor: "rgba(255,255,255,0.05)" }}>
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${maxCount > 0 ? Math.round((count/maxCount)*100) : 0}%`,
+                  backgroundColor: barColor(score),
+                  opacity: count > 0 ? 1 : 0.15,
+                }}
+              />
+            </div>
+            <span className="text-xs w-8 text-right flex-shrink-0" style={{ color: count > 0 ? "#9ca3af" : "#374151" }}>
+              {pct > 0 ? `${pct}%` : "—"}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Круговой индикатор */}
+      {avgRating && total > 0 && (
+        <div className="flex items-center justify-center pt-1">
+          <DonutChart value={parseFloat(avgRating)} max={10} color={
+            parseFloat(avgRating) >= 8 ? "#34d399" :
+            parseFloat(avgRating) >= 6 ? "#fbbf24" : "#f87171"
+          } />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DonutChart({ value, max, color }) {
+  const pct    = Math.min(value / max, 1);
+  const r      = 42;
+  const stroke = 8;
+  const circ   = 2 * Math.PI * r;
+  const dash   = circ * pct;
+  const gap    = circ - dash;
+  const size   = (r + stroke) * 2;
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        {/* Фон */}
+        <circle cx={size/2} cy={size/2} r={r}
+          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+        {/* Прогресс */}
+        <circle cx={size/2} cy={size/2} r={r}
+          fill="none" stroke={color} strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${gap}`}
+          style={{ transition: "stroke-dasharray 1s ease" }}
+        />
+      </svg>
+      <div className="absolute text-center" style={{ transform: "translateY(0)" }}>
+        <p className="text-lg font-black leading-none" style={{ color }}>{value}</p>
+        <p className="text-xs" style={{ color: "#6b7280" }}>/ {max}</p>
+      </div>
+    </div>
+  );
+}
+
 
 function Empty({ text }) {
   return <div className="py-16 text-center text-sm" style={{ color: "#4b5563" }}>{text}</div>;

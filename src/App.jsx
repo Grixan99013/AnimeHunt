@@ -10,6 +10,7 @@ import CharacterCatalog from "./pages/CharacterCatalog";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
+import AdminPage from "./pages/AdminPage";
 
 export const AuthContext = createContext(null);
 export function useAuth() { return useContext(AuthContext); }
@@ -29,6 +30,13 @@ function Private({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+function AdminOnly({ children }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role_id !== 1) return <Navigate to="/" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -42,7 +50,9 @@ export default function App() {
             <Route path="/character/:id" element={<CharacterPage />} />
             <Route path="/login"         element={<Login />} />
             <Route path="/register"      element={<Register />} />
-            <Route path="/profile"       element={<Private><Profile /></Private>} />
+            <Route path="/profile"            element={<Private><Profile /></Private>} />
+            <Route path="/profile/:username" element={<Profile />} />
+            <Route path="/admin"         element={<AdminOnly><AdminPage /></AdminOnly>} />
           </Routes>
         </Layout>
       </Router>

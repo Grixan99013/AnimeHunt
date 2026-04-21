@@ -117,7 +117,7 @@ router.get("/:id", optionalAuth, async (req, res) => {
 
       pool.query(`
         SELECT cc.id, cc.body, cc.created_at, cc.parent_id, cc.image_url,
-               u.username, u.id AS user_id,
+               u.username, u.id AS user_id, u.avatar_url,
                pu.username AS parent_username
         FROM character_comments cc
         JOIN users u ON u.id = cc.user_id
@@ -285,8 +285,8 @@ router.post("/:id/comments", requireAuth, async (req, res) => {
       VALUES ($1,$2,$3,$4,$5) RETURNING id, body, created_at, parent_id, image_url
     `, [req.userId, id, (body || "").trim(), parent_id || null, image_url || null]);
 
-    const u = await pool.query("SELECT username FROM users WHERE id=$1", [req.userId]);
-    res.json({ ...r.rows[0], username: u.rows[0].username, user_id: req.userId, parent_username: parentUsername });
+    const u = await pool.query("SELECT username, avatar_url FROM users WHERE id=$1", [req.userId]);
+    res.json({ ...r.rows[0], username: u.rows[0].username, avatar_url: u.rows[0].avatar_url, user_id: req.userId, parent_username: parentUsername });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

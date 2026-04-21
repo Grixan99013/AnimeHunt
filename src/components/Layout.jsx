@@ -231,9 +231,11 @@ export default function Layout({ children }) {
               <>
                 <Link to="/profile" className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
                   style={{ color: "#d1d5db" }}>
-                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                    style={{ background: "linear-gradient(135deg,#7c3aed,#a21caf)" }}>
-                    {user.username[0].toUpperCase()}
+                  <span className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                    style={{ background: user.avatar_url ? "transparent" : "linear-gradient(135deg,#7c3aed,#a21caf)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                    {user.avatar_url
+                      ? <img src={user.avatar_url} alt={user.username} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                      : user.username[0].toUpperCase()}
                   </span>
                   {user.username}
                 </Link>

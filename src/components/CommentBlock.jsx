@@ -1,21 +1,17 @@
 // src/components/CommentBlock.jsx
-// Универсальный компонент комментариев — AnimePage + CharacterPage
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../App";
 
 // ─────────────────────────────────────────────────────────────
 // Рендер форматированного текста
-// Поддержка: **bold**, _italic_, ~~strike~~, __underline__,
-// [spoiler]...[/spoiler], переносы строк \n
 // ─────────────────────────────────────────────────────────────
 
 function SpoilerSpan({ text }) {
   const [open, setOpen] = useState(false);
   if (open) {
     return (
-      <span
-        onClick={() => setOpen(false)}
+      <span onClick={() => setOpen(false)}
         style={{ backgroundColor: "rgba(139,92,246,0.12)", borderRadius: "4px", padding: "0 4px", cursor: "pointer" }}
         title="Нажмите чтобы скрыть">
         {renderInline(text)}
@@ -23,8 +19,7 @@ function SpoilerSpan({ text }) {
     );
   }
   return (
-    <button
-      onClick={() => setOpen(true)}
+    <button onClick={() => setOpen(true)}
       style={{
         display: "inline-flex", alignItems: "center", gap: "6px",
         background: "linear-gradient(to right,#7c3aed,#a21caf)",
@@ -37,7 +32,6 @@ function SpoilerSpan({ text }) {
   );
 }
 
-// Парсим инлайн-форматирование в токены
 function renderInline(text) {
   const re = /(\*\*(.+?)\*\*|~~(.+?)~~|__(.+?)__|_(.+?)_)/gs;
   const parts = [];
@@ -54,18 +48,14 @@ function renderInline(text) {
   return parts;
 }
 
-// Разбиваем текст на сегменты по \n и [spoiler]
 function RenderedBody({ body }) {
   if (!body) return null;
-  // Сначала разделяем по spoiler-тегам
   const spoilerRe = /\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi;
   const segments  = [];
   let last = 0, m, idx = 0;
   while ((m = spoilerRe.exec(body)) !== null) {
     if (m.index > last) {
-      // Текстовый сегмент — разделяем по \n
-      const chunk = body.slice(last, m.index);
-      chunk.split("\n").forEach((line, i, arr) => {
+      body.slice(last, m.index).split("\n").forEach((line, i, arr) => {
         segments.push(<span key={idx++}>{renderInline(line)}</span>);
         if (i < arr.length - 1) segments.push(<br key={idx++} />);
       });
@@ -87,11 +77,44 @@ function RenderedBody({ body }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Аватар пользователя — общий компонент для комментариев
+// ─────────────────────────────────────────────────────────────
+function UserAvatar({ username, avatarUrl, size = 28 }) {
+  const letter = (username || "?")[0].toUpperCase();
+  return (
+    <div
+      className="rounded-full overflow-hidden flex items-center justify-center font-bold text-white flex-shrink-0"
+      style={{
+        width: size, height: size,
+        background: avatarUrl ? "transparent" : "linear-gradient(135deg,#7c3aed,#a21caf)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        fontSize: size * 0.4,
+      }}>
+      {avatarUrl
+        ? <img src={avatarUrl} alt={username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        : letter}
+    </div>
+  );
+}
+
+// Кликабельное имя пользователя — ссылка на профиль
+function UserLink({ username }) {
+  return (
+    <Link
+      to={`/profile/${username}`}
+      className="text-sm font-semibold text-white transition-colors hover:text-violet-300"
+      style={{ textDecoration: "none" }}>
+      {username}
+    </Link>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Редактор комментария
 // ─────────────────────────────────────────────────────────────
 function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, onCancel }) {
-  const [text,  setText]        = useState("");
-  const [img,   setImg]         = useState(null);   // { url, preview }
+  const [text,  setText] = useState("");
+  const [img,   setImg]  = useState(null);
   const textareaRef = useRef(null);
   const fileRef     = useRef(null);
 
@@ -123,7 +146,7 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { alert("Максимальный размер файла — 5 МБ"); return; }
     const reader = new FileReader();
-    reader.onload = ev => setImg({ url: ev.target.result, preview: ev.target.result });
+    reader.onload = ev => setImg({ url: ev.target.result });
     reader.readAsDataURL(file);
   };
 
@@ -153,19 +176,17 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
         {tools.map(t => (
           <button key={t.label} type="button" title={t.title} onClick={t.action}
             className="w-8 h-7 rounded flex items-center justify-center text-xs transition-colors"
-            style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#d1d5db",
-                     border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer", ...t.style }}>
+            style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#d1d5db", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer", ...t.style }}>
             {t.label}
           </button>
         ))}
         <div style={{ width: 1, height: 18, backgroundColor: "rgba(255,255,255,0.1)", margin: "0 4px" }} />
-        <button type="button" title="Прикрепить изображение (до 5 МБ)"
-          onClick={() => fileRef.current?.click()}
-          className="flex items-center gap-1.5 h-7 px-2.5 rounded text-xs transition-colors"
-          style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#9ca3af",
-                   border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer" }}>
+        <button type="button" title="Прикрепить изображение (до 5 МБ)" onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-1.5 h-7 px-2.5 rounded text-xs"
+          style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#9ca3af", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer" }}>
           <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
             <polyline points="21 15 16 10 5 21"/>
           </svg>
           Фото
@@ -173,7 +194,6 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
       </div>
 
-      {/* Textarea */}
       <textarea
         ref={textareaRef}
         value={text}
@@ -187,17 +207,14 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
           if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); handleSubmit(e); }
         }}
         className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none resize-y"
-        style={{ backgroundColor: "#0d0f14", border: "1px solid rgba(255,255,255,0.1)",
-                 lineHeight: 1.6, minHeight: "80px" }}
+        style={{ backgroundColor: "#0d0f14", border: "1px solid rgba(255,255,255,0.1)", lineHeight: 1.6, minHeight: "80px" }}
         onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.4)"}
         onBlur={e  => e.target.style.borderColor = "rgba(255,255,255,0.1)"}
       />
 
-      {/* Превью изображения */}
       {img && (
         <div className="relative inline-block">
-          <img src={img.preview} alt="preview"
-            className="max-h-36 rounded-xl object-cover"
+          <img src={img.url} alt="preview" className="max-h-36 rounded-xl object-cover"
             style={{ maxWidth: "220px", border: "1px solid rgba(255,255,255,0.1)" }} />
           <button type="button" onClick={() => { setImg(null); if (fileRef.current) fileRef.current.value = ""; }}
             className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
@@ -207,16 +224,10 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
         </div>
       )}
 
-      {/* Кнопки */}
       <div className="flex items-center gap-2">
         <button type="submit" disabled={!canSend}
           className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{
-            background: canSend ? "linear-gradient(to right,#7c3aed,#a21caf)" : "rgba(255,255,255,0.08)",
-            opacity: canSend ? 1 : 0.5,
-            cursor: canSend ? "pointer" : "not-allowed",
-            border: "none",
-          }}>
+          style={{ background: canSend ? "linear-gradient(to right,#7c3aed,#a21caf)" : "rgba(255,255,255,0.08)", opacity: canSend ? 1 : 0.5, cursor: canSend ? "pointer" : "not-allowed", border: "none" }}>
           {submitting ? "Отправка…" : "Отправить"}
         </button>
         {onCancel && (
@@ -226,19 +237,19 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
             Отмена
           </button>
         )}
-        <span className="text-xs ml-1" style={{ color: "#4b5563" }}>Ctrl+Enter для отправки</span>
+        <span className="text-xs ml-1" style={{ color: "#4b5563" }}>Ctrl+Enter</span>
       </div>
     </form>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// Карточка одного комментария (рекурсивная)
+// Карточка комментария (рекурсивная)
 // ─────────────────────────────────────────────────────────────
 function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
   const [showReplies, setShowReplies] = useState(true);
-  const replies = allComments.filter(r => String(r.parent_id) === String(c.id));
-  const MAX_DEPTH = 4; // глубже не вкладываем
+  const replies  = allComments.filter(r => String(r.parent_id) === String(c.id));
+  const MAX_DEPTH = 4;
 
   const dateStr = new Date(c.created_at).toLocaleString("ru-RU", {
     day: "2-digit", month: "2-digit", year: "numeric",
@@ -247,57 +258,56 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
 
   return (
     <div>
-      {/* Сам комментарий */}
-      <div
-        className="rounded-xl px-4 py-3"
+      <div className="rounded-xl px-4 py-3"
         style={{
           backgroundColor: depth === 0 ? "#13151c" : "rgba(255,255,255,0.025)",
           border: `1px solid ${depth === 0 ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)"}`,
         }}>
-        {/* Шапка */}
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-            style={{ background: "linear-gradient(135deg,#7c3aed,#a21caf)" }}>
-            {c.username?.[0]?.toUpperCase() || "?"}
-          </span>
-          <span className="text-sm font-semibold text-white">{c.username}</span>
 
-          {/* Кому отвечают (показываем только если нет отступа) */}
+        {/* Шапка: аватар + ник + дата */}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          {/* Аватар — кликабельный, ведёт на профиль */}
+          <Link to={`/profile/${c.username}`} style={{ textDecoration: "none", flexShrink: 0 }}>
+            <UserAvatar username={c.username} avatarUrl={c.avatar_url} size={28} />
+          </Link>
+
+          {/* Ник — ссылка на профиль */}
+          <UserLink username={c.username} />
+
+          {/* Ответ кому — показываем при depth=0 */}
           {c.parent_username && depth === 0 && (
             <span className="text-xs flex items-center gap-1" style={{ color: "#6b7280" }}>
               <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
               </svg>
-              <span style={{ color: "#a78bfa" }}>@{c.parent_username}</span>
+              <Link to={`/profile/${c.parent_username}`}
+                style={{ color: "#a78bfa", textDecoration: "none" }}
+                className="hover:underline">
+                @{c.parent_username}
+              </Link>
             </span>
           )}
 
           <span className="text-xs ml-auto flex-shrink-0" style={{ color: "#4b5563" }}>{dateStr}</span>
         </div>
 
-        {/* Текст */}
+        {/* Тело */}
         <RenderedBody body={c.body} />
 
-        {/* Изображение */}
+        {/* Прикреплённое изображение */}
         {c.image_url && (
           <div className="mt-2">
             <a href={c.image_url} target="_blank" rel="noopener noreferrer">
-              <img
-                src={c.image_url}
-                alt="вложение"
-                className="rounded-xl object-cover cursor-zoom-in"
-                style={{ maxHeight: "200px", maxWidth: "320px", border: "1px solid rgba(255,255,255,0.08)" }}
-              />
+              <img src={c.image_url} alt="вложение" className="rounded-xl object-cover cursor-zoom-in"
+                style={{ maxHeight: "200px", maxWidth: "320px", border: "1px solid rgba(255,255,255,0.08)" }} />
             </a>
           </div>
         )}
 
-        {/* Нижняя панель */}
+        {/* Нижняя панель — Ответить + свернуть ответы */}
         <div className="flex items-center gap-3 mt-2">
           {user ? (
-            <button
-              onClick={() => onReply(c)}
+            <button onClick={() => onReply(c)}
               className="text-xs flex items-center gap-1 transition-colors"
               style={{ color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}
               onMouseEnter={e => e.currentTarget.style.color = "#a78bfa"}
@@ -312,12 +322,10 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
           )}
 
           {replies.length > 0 && (
-            <button
-              onClick={() => setShowReplies(v => !v)}
+            <button onClick={() => setShowReplies(v => !v)}
               className="text-xs flex items-center gap-1"
               style={{ color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
-              <svg
-                width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                 style={{ transform: showReplies ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
               </svg>
@@ -328,21 +336,13 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
         </div>
       </div>
 
-      {/* Ответы — с отступом и вертикальной линией */}
+      {/* Вложенные ответы */}
       {showReplies && replies.length > 0 && (
-        <div
-          className="mt-2 space-y-2 pl-4"
+        <div className="mt-2 space-y-2 pl-4"
           style={{ borderLeft: "2px solid rgba(139,92,246,0.2)", marginLeft: "14px" }}>
           {replies.map(r => (
-            <CommentCard
-              key={r.id}
-              c={r}
-              allComments={allComments}
-              onReply={onReply}
-              depth={Math.min(depth + 1, MAX_DEPTH)}
-              user={user}
-              loginPath={loginPath}
-            />
+            <CommentCard key={r.id} c={r} allComments={allComments} onReply={onReply}
+              depth={Math.min(depth + 1, MAX_DEPTH)} user={user} loginPath={loginPath} />
           ))}
         </div>
       )}
@@ -356,27 +356,23 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
 export default function CommentBlock({
   comments: initialComments = [],
   onPost,
-  placeholder = "Поделитесь впечатлениями…",
-  loginPath   = "/login",
-  previewCount = 5,
+  placeholder   = "Поделитесь впечатлениями…",
+  loginPath     = "/login",
+  previewCount  = 5,
 }) {
   const { user } = useAuth();
   const [comments,   setComments]   = useState(() => initialComments);
   const [submitting, setSubmitting] = useState(false);
   const [showAll,    setShowAll]    = useState(false);
-  const [replyTo,    setReplyTo]    = useState(null);  // { id, username }
+  const [replyTo,    setReplyTo]    = useState(null);
   const replyBoxRef = useRef(null);
 
-  // Синхронизируем когда родитель подгрузил комментарии
   useEffect(() => {
-    if (initialComments.length > 0) {
-      setComments(initialComments);
-    }
+    if (initialComments.length > 0) setComments(initialComments);
   }, [initialComments]);
 
   const handleReply = useCallback((c) => {
     setReplyTo({ id: c.id, username: c.username });
-    // Скроллим к форме ответа
     setTimeout(() => {
       replyBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       replyBoxRef.current?.querySelector("textarea")?.focus();
@@ -394,29 +390,30 @@ export default function CommentBlock({
     finally { setSubmitting(false); }
   };
 
-  // Корневые комментарии (parent_id === null)
   const roots       = comments.filter(c => !c.parent_id);
   const visible     = showAll ? roots : roots.slice(0, previewCount);
   const hiddenCount = roots.length - previewCount;
-  const totalCount  = comments.length;
 
   return (
     <div className="space-y-5">
       {/* Заголовок */}
       <div className="flex items-center gap-2">
         <h3 className="text-base font-bold text-white">Комментарии</h3>
-        {totalCount > 0 && (
-          <span className="text-sm" style={{ color: "#6b7280" }}>({totalCount})</span>
+        {comments.length > 0 && (
+          <span className="text-sm" style={{ color: "#6b7280" }}>({comments.length})</span>
         )}
       </div>
 
-      {/* Основная форма */}
+      {/* Форма — показываем аватар текущего пользователя рядом */}
       {user ? (
-        <CommentEditor
-          onSubmit={handlePost}
-          submitting={submitting}
-          placeholder={placeholder}
-        />
+        <div className="flex gap-3 items-start">
+          <Link to={`/profile/${user.username}`} style={{ textDecoration: "none", flexShrink: 0, marginTop: "4px" }}>
+            <UserAvatar username={user.username} avatarUrl={user.avatar_url} size={32} />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <CommentEditor onSubmit={handlePost} submitting={submitting} placeholder={placeholder} />
+          </div>
+        </div>
       ) : (
         <div className="rounded-xl px-4 py-3 text-sm"
           style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.06)", color: "#6b7280" }}>
@@ -424,7 +421,7 @@ export default function CommentBlock({
         </div>
       )}
 
-      {/* Блок ответа */}
+      {/* Форма ответа */}
       {replyTo && (
         <div ref={replyBoxRef} className="rounded-xl p-4"
           style={{ backgroundColor: "#13151c", border: "1px solid rgba(139,92,246,0.3)" }}>
@@ -436,56 +433,43 @@ export default function CommentBlock({
               </svg>
               <span style={{ color: "#9ca3af" }}>
                 Ответ для{" "}
-                <span style={{ color: "#c4b5fd", fontWeight: 600 }}>@{replyTo.username}</span>
+                <Link to={`/profile/${replyTo.username}`}
+                  style={{ color: "#c4b5fd", fontWeight: 600, textDecoration: "none" }}>
+                  @{replyTo.username}
+                </Link>
               </span>
             </div>
             <button onClick={() => setReplyTo(null)}
-              style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "1rem", lineHeight: 1 }}>
+              style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "1rem" }}>
               ✕
             </button>
           </div>
-          <CommentEditor
-            onSubmit={handlePost}
-            submitting={submitting}
+          <CommentEditor onSubmit={handlePost} submitting={submitting}
             placeholder={`Ответить @${replyTo.username}…`}
-            autoFocus
-            onCancel={() => setReplyTo(null)}
-          />
+            autoFocus onCancel={() => setReplyTo(null)} />
         </div>
       )}
 
-      {/* Список комментариев */}
+      {/* Список */}
       {roots.length === 0 ? (
-        <p className="text-sm py-2" style={{ color: "#4b5563" }}>
-          Комментариев пока нет. Будьте первым!
-        </p>
+        <p className="text-sm py-2" style={{ color: "#4b5563" }}>Комментариев пока нет. Будьте первым!</p>
       ) : (
         <div className="space-y-3">
           {visible.map(c => (
-            <CommentCard
-              key={c.id}
-              c={c}
-              allComments={comments}
-              onReply={handleReply}
-              depth={0}
-              user={user}
-              loginPath={loginPath}
-            />
+            <CommentCard key={c.id} c={c} allComments={comments} onReply={handleReply}
+              depth={0} user={user} loginPath={loginPath} />
           ))}
 
           {!showAll && hiddenCount > 0 && (
-            <button
-              onClick={() => setShowAll(true)}
+            <button onClick={() => setShowAll(true)}
               className="w-full py-2.5 rounded-xl text-sm font-medium"
               style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#9ca3af", cursor: "pointer" }}>
               Показать ещё {hiddenCount}{" "}
               {hiddenCount === 1 ? "комментарий" : hiddenCount < 5 ? "комментария" : "комментариев"}
             </button>
           )}
-
           {showAll && roots.length > previewCount && (
-            <button
-              onClick={() => setShowAll(false)}
+            <button onClick={() => setShowAll(false)}
               className="w-full py-2.5 rounded-xl text-sm font-medium"
               style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#9ca3af", cursor: "pointer" }}>
               Свернуть

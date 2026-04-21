@@ -1,7 +1,7 @@
 // src/pages/Catalog.jsx
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { fetchAnimeList, fetchGenres, fetchStudios } from "../api/api";
+import { fetchAnimeList, fetchGenres, fetchStudios, fetchThemes } from "../api/api";
 import AnimeCard from "../components/AnimeCard";
 
 const STATUSES  = ["all","ongoing","completed","upcoming"];
@@ -20,6 +20,8 @@ const gOn    = { background:"rgba(217,70,239,0.2)", color:"#e879f9", border:"1px
 const gOff   = { background:"rgba(255,255,255,0.05)", color:"#9ca3af", border:"1px solid transparent" };
 const sOn    = { background:"rgba(251,191,36,0.2)", color:"#fde68a", border:"1px solid rgba(251,191,36,0.35)" };
 const sOff   = { background:"rgba(255,255,255,0.05)", color:"#9ca3af", border:"1px solid transparent" };
+const thOn   = { background:"rgba(99,102,241,0.2)", color:"#a5b4fc", border:"1px solid rgba(99,102,241,0.35)" };
+const thOff  = { background:"rgba(255,255,255,0.05)", color:"#9ca3af", border:"1px solid transparent" };
 
 export default function Catalog() {
   const [searchParams] = useSearchParams();
@@ -29,11 +31,13 @@ export default function Catalog() {
   const [sort,      setSort]      = useState(searchParams.get("sort") || "newest");
   const [selGenres, setSelGenres] = useState([]);
   const [selStudio, setSelStudio] = useState("");   // фильтр по студии (название)
+  const [selTheme,  setSelTheme]  = useState("");   // тема аниме
   const [showFilters, setShowFilters] = useState(false);
 
   const [animeList, setAnimeList] = useState([]);
   const [genres,    setGenres]    = useState([]);
   const [studios,   setStudios]   = useState([]);
+  const [themes,    setThemes]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState("");
 
@@ -43,6 +47,7 @@ export default function Catalog() {
   useEffect(() => {
     fetchGenres().then(setGenres).catch(() => {});
     fetchStudios().then(setStudios).catch(() => {});
+    fetchThemes().then(setThemes).catch(() => {});
   }, []);
 
   const load = useCallback(() => {
@@ -56,6 +61,7 @@ export default function Catalog() {
       ...(isNew  && { is_new: true }),
       ...(selGenres.length === 1 && { genre: selGenres[0] }),
       ...(selStudio && { studio: selStudio }),
+      ...(selTheme && { theme: selTheme }),
     };
     fetchAnimeList(params)
       .then(data => {
@@ -69,7 +75,7 @@ export default function Catalog() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [query, status, type, sort, selGenres, selStudio, isNew]);
+  }, [query, status, type, sort, selGenres, selStudio, selTheme, isNew]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -80,10 +86,11 @@ export default function Catalog() {
     selGenres.length +
     (status !== "all" ? 1 : 0) +
     (type   !== "all" ? 1 : 0) +
-    (selStudio ? 1 : 0);
+    (selStudio ? 1 : 0) +
+    (selTheme ? 1 : 0);
 
   const resetFilters = () => {
-    setStatus("all"); setType("all"); setSelGenres([]); setQuery(""); setSelStudio("");
+    setStatus("all"); setType("all"); setSelGenres([]); setQuery(""); setSelStudio(""); setSelTheme("");
   };
 
   return (
@@ -175,6 +182,25 @@ export default function Catalog() {
             </FG>
           )}
 
+          {/* Тема */}
+          {themes.length > 0 && (
+            <FG label="Тема">
+              <button onClick={() => setSelTheme("")}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                style={selTheme === "" ? thOn : thOff}>Все</button>
+              {themes.map(t => (
+                <button key={t.name} onClick={() => setSelTheme(t.name === selTheme ? "" : t.name)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                  style={selTheme === t.name ? thOn : thOff}>
+                  {t.name}
+                  {t.anime_count > 0 && (
+                    <span className="ml-1.5 opacity-60">({t.anime_count})</span>
+                  )}
+                </button>
+              ))}
+            </FG>
+          )}
+
           <button onClick={resetFilters}
             style={{ background:"transparent", border:"none", color:"#6b7280", cursor:"pointer", fontSize:"0.75rem" }}>
             Сбросить фильтры
@@ -193,6 +219,9 @@ export default function Catalog() {
           )}
           {selStudio && (
             <FilterTag label={selStudio} onRemove={() => setSelStudio("")} color="amber" />
+          )}
+          {selTheme && (
+            <FilterTag label={selTheme} onRemove={() => setSelTheme("")} color="indigo" />
           )}
           {selGenres.map(g => (
             <FilterTag key={g} label={g} onRemove={() => toggleGenre(g)} color="fuchsia" />
@@ -244,6 +273,7 @@ function FilterTag({ label, onRemove, color }) {
     default: { background:"rgba(139,92,246,0.2)", color:"#c4b5fd", border:"1px solid rgba(139,92,246,0.3)" },
     amber:   { background:"rgba(251,191,36,0.2)",  color:"#fde68a", border:"1px solid rgba(251,191,36,0.3)" },
     fuchsia: { background:"rgba(217,70,239,0.2)",  color:"#e879f9", border:"1px solid rgba(217,70,239,0.3)" },
+    indigo:  { background:"rgba(99,102,241,0.2)",   color:"#a5b4fc", border:"1px solid rgba(99,102,241,0.3)" },
   };
   const style = colors[color] || colors.default;
   return (

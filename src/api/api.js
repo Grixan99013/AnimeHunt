@@ -6,6 +6,21 @@ function getToken() {
   catch { return null; }
 }
 
+/** Загрузка изображения (постер/баннер); только для админа с токеном */
+export async function uploadAdminImage(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const t = getToken();
+  const res = await fetch(`${BASE}/upload`, {
+    method: "POST",
+    headers: t ? { Authorization: `Bearer ${t}` } : {},
+    body: fd,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Ошибка ${res.status}`);
+  return data.url;
+}
+
 async function request(path, opts={}) {
   const h={"Content-Type":"application/json"};
   const t=getToken(); if(t) h["Authorization"]=`Bearer ${t}`;
@@ -25,6 +40,16 @@ export function fetchAnimeList(params={}) {
 export const fetchAnime   = (id)    => request(`/anime/${id}`);
 export const fetchGenres  = ()      => request("/anime/genres");
 export const fetchStudios = ()      => request("/anime/studios");
+export const fetchThemes  = ()      => request("/anime/themes");
+export function createAnime(body) {
+  return request("/anime", { method: "POST", body: JSON.stringify(body) });
+}
+export function updateAnime(id, body) {
+  return request(`/anime/${id}`, { method: "PUT", body: JSON.stringify(body) });
+}
+export function addCharacterToAnime(animeId, body) {
+  return request(`/anime/${animeId}/characters`, { method: "POST", body: JSON.stringify(body) });
+}
 export const rateAnime    = (id,sc) => request(`/anime/${id}/rate`,{method:"POST",body:JSON.stringify({score:sc})});
 export const postComment  = (id,body,pid=null,image_url=null) => request(`/anime/${id}/comments`,{method:"POST",body:JSON.stringify({body,parent_id:pid,image_url})});
 export const postReview   = (animeId,data) => request(`/anime/${animeId}/reviews`,{method:"POST",body:JSON.stringify(data)});
@@ -63,6 +88,8 @@ export const fetchMyComments  = () => request("/user/comments");
 export const fetchMyRatings   = () => request("/user/ratings");
 export const fetchMyFavorites = () => request("/user/favorites");
 export const fetchMyReviews   = () => request("/user/reviews");
+export const fetchPublicProfile = (username) => request(`/user/profile/${username}`);
+export const updatePrivacy      = (data)     => request("/user/privacy", { method:"PATCH", body:JSON.stringify(data) });
 
 // ── Авторизация ───────────────────────────────────────────────
 export async function apiLogin({email,password}) {
@@ -92,3 +119,14 @@ export const STATUS_STYLES ={
 };
 export const TYPE_LABELS ={tv:"ТВ",movie:"Фильм",ova:"OVA",ona:"ONA",special:"Спэшл"};
 export const ROLE_LABELS ={main:"Главный",supporting:"Второстепенный",extra:"Эпизодический"};
+
+// ── Медиа (кадры и видео) ─────────────────────────────────────
+export const fetchScreenshots  = (animeId)          => request(`/media/anime/${animeId}/screenshots`);
+export const submitScreenshot  = (animeId, image_url) => request(`/media/anime/${animeId}/screenshots`, { method:"POST", body:JSON.stringify({ image_url }) });
+export const reviewScreenshot  = (id, status)       => request(`/media/screenshots/${id}`, { method:"PATCH", body:JSON.stringify({ status }) });
+export const deleteScreenshot  = (id)               => request(`/media/screenshots/${id}`, { method:"DELETE" });
+
+export const fetchVideos       = (animeId)           => request(`/media/anime/${animeId}/videos`);
+export const submitVideo       = (animeId, data)     => request(`/media/anime/${animeId}/videos`, { method:"POST", body:JSON.stringify(data) });
+export const reviewVideo       = (id, status)        => request(`/media/videos/${id}`, { method:"PATCH", body:JSON.stringify({ status }) });
+export const deleteVideo       = (id)               => request(`/media/videos/${id}`, { method:"DELETE" });
