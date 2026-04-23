@@ -80,6 +80,47 @@ async function saveAnimeGenresAndThemes(client, animeId, genreIds, themeStrings)
   }
 }
 
+
+async function saveAnimeSeries(client, animeId, seriesData) {
+  // seriesData: { mode, series_id, series_title, series_description, sort_order }
+  if (!seriesData || !seriesData.mode) return;
+
+  // Сначала убираем из любой существующей серии
+  await client.query(
+    "DELETE FROM anime_series_entries WHERE anime_id = $1",
+    [animeId]
+  );
+
+  if (seriesData.mode === "none") return;
+
+  let seriesId;
+
+  if (seriesData.mode === "existing" && seriesData.series_id) {
+    seriesId = Number(seriesData.series_id);
+  } else if (seriesData.mode === "new" && seriesData.series_title?.trim()) {
+    // Создаём новую серию
+    await client.query(
+      "INSERT INTO anime_series (title, description) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [seriesData.series_title.trim(), seriesData.series_description?.trim() || null]
+    );
+    const r = await client.query(
+      "SELECT id FROM anime_series WHERE title = $1",
+      [seriesData.series_title.trim()]
+    );
+    seriesId = r.rows[0]?.id;
+  }
+
+  if (!seriesId) return;
+
+  const sortOrder = seriesData.sort_order != null ? Number(seriesData.sort_order) : 99;
+  await client.query(
+    `INSERT INTO anime_series_entries (series_id, anime_id, sort_order)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (series_id, anime_id) DO UPDATE SET sort_order = EXCLUDED.sort_order`,
+    [seriesId, animeId, sortOrder]
+  );
+}
+
 // ── Статические роуты ПЕРЕД /:id ─────────────────────────────
 
 router.get("/genres", async (req, res) => {
@@ -106,6 +147,23 @@ router.get("/themes", async (req, res) => {
       FROM anime_themes
       GROUP BY theme
       ORDER BY theme
+    `);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+router.get("/series-list", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT s.id, s.title, s.description,
+             JSON_AGG(JSON_BUILD_OBJECT('id', a.id, 'title', a.title, 'season_num', a.season_num)
+               ORDER BY ase.sort_order) AS entries
+      FROM anime_series s
+      JOIN anime_series_entries ase ON ase.series_id = s.id
+      JOIN anime a ON a.id = ase.anime_id
+      GROUP BY s.id
+      ORDER BY s.title
     `);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -152,6 +210,7 @@ router.post("/", requireAdmin, async (req, res) => {
     );
     const animeId = ins.rows[0].id;
     await saveAnimeGenresAndThemes(client, animeId, genreIds, themeList);
+    if (body.series) await saveAnimeSeries(client, animeId, body.series);
     await client.query("COMMIT");
     res.status(201).json({ id: animeId, ok: true });
   } catch (err) {
@@ -211,6 +270,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
       ]
     );
     await saveAnimeGenresAndThemes(client, id, genreIds, themeList);
+    if (body.series) await saveAnimeSeries(client, id, body.series);
     await client.query("COMMIT");
     res.json({ ok: true, id: Number(id) });
   } catch (err) {

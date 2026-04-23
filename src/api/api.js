@@ -41,6 +41,7 @@ export const fetchAnime   = (id)    => request(`/anime/${id}`);
 export const fetchGenres  = ()      => request("/anime/genres");
 export const fetchStudios = ()      => request("/anime/studios");
 export const fetchThemes  = ()      => request("/anime/themes");
+export const fetchSeriesList = () => request("/anime/series-list");
 export function createAnime(body) {
   return request("/anime", { method: "POST", body: JSON.stringify(body) });
 }
@@ -63,6 +64,7 @@ export function fetchCharacterList(params={}) {
   return request(`/characters${qs?"?"+qs:""}`);
 }
 export const fetchCharacter       = (id)            => request(`/characters/${id}`);
+export const updateCharacter      = (id, data)      => request(`/characters/${id}`, { method: "PUT", body: JSON.stringify(data) });
 export const toggleFavorite       = (id)            => request(`/characters/${id}/favorite`,{method:"POST"});
 export const postCharacterComment = (id,b,pid=null,image_url=null) => request(`/characters/${id}/comments`,{method:"POST",body:JSON.stringify({body:b,parent_id:pid,image_url})});
 export const shipCharacter        = (id,shippedWith)=> request(`/characters/${id}/ship`,{method:"POST",body:JSON.stringify({shipped_with:shippedWith})});

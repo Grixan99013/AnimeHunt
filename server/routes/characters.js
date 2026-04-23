@@ -244,6 +244,53 @@ router.get("/:id", optionalAuth, async (req, res) => {
   }
 });
 
+
+// ── PUT /api/characters/:id — редактирование персонажа (только admin) ──
+router.put("/:id", requireAuth, async (req, res) => {
+  try {
+    // Проверяем что это admin (role_id = 1)
+    const userQ = await pool.query("SELECT role_id FROM users WHERE id=$1", [req.userId]);
+    if (!userQ.rows[0] || userQ.rows[0].role_id !== 1) {
+      return res.status(403).json({ error: "Только администратор может редактировать персонажей" });
+    }
+
+    const { id } = req.params;
+    const {
+      name, name_jp, role, description,
+      image_url, age, gender, abilities,
+    } = req.body;
+
+    if (!name?.trim()) return res.status(400).json({ error: "Укажите имя персонажа" });
+
+    const validRoles = ["main", "supporting", "extra"];
+    const charRole = validRoles.includes(role) ? role : "supporting";
+
+    const r = await pool.query(`
+      UPDATE characters
+      SET name=$1, name_jp=$2, role=$3, description=$4,
+          image_url=$5, age=$6, gender=$7, abilities=$8
+      WHERE id=$9
+      RETURNING *
+    `, [
+      name.trim(),
+      name_jp?.trim() || null,
+      charRole,
+      description?.trim() || null,
+      image_url?.trim() || null,
+      age?.trim() || null,
+      gender?.trim() || null,
+      abilities?.trim() || null,
+      id,
+    ]);
+
+    if (!r.rows[0]) return res.status(404).json({ error: "Персонаж не найден" });
+    res.json({ ok: true, character: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/characters/:id/favorite ────────────────────────
 router.post("/:id/favorite", requireAuth, async (req, res) => {
   try {

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../App";
 import CommentBlock from "../components/CommentBlock";
+import EditCharacterForm from "../components/EditCharacterForm";
 import {
   fetchCharacter, toggleFavorite, postCharacterComment,
   shipCharacter, unshipCharacter,
@@ -22,6 +23,9 @@ export default function CharacterPage() {
 
   // Комментарии
   const [comments, setComments] = useState([]);
+
+  // Редактирование (только admin)
+  const [editMode, setEditMode] = useState(false);
 
   // Шипперинг
   const [myShip, setMyShip]           = useState(null);   // { shipped_with, shipped_name, shipped_img }
@@ -43,6 +47,12 @@ export default function CharacterPage() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // ── Редактирование ─────────────────────────────────────────────
+  const handleCharSaved = (updatedChar) => {
+    setChar(prev => ({ ...prev, ...updatedChar }));
+    setEditMode(false);
+  };
 
   // ── Избранное ───────────────────────────────────────────────
   const handleFavorite = async () => {
@@ -107,7 +117,8 @@ export default function CharacterPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
 
-      {/* Хлебные крошки */}
+      {/* Заголовок страницы: хлебные крошки + кнопка редактирования */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
       <nav className="flex items-center gap-2 text-sm flex-wrap" style={{ color: "#6b7280" }}>
         <Link to={`/anime/${primary?.id}`} className="hover:underline" style={{ color: "#a78bfa" }}>
           {primary?.title || "Аниме"}
@@ -117,6 +128,55 @@ export default function CharacterPage() {
         <span>›</span>
         <span className="text-white">{char.name}</span>
       </nav>
+      {/* Кнопка редактирования — только для admin */}
+      {user?.role_id === 1 && (
+        <button
+          onClick={() => setEditMode(v => !v)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold flex-shrink-0"
+          style={{
+            background: editMode
+              ? "rgba(255,255,255,0.08)"
+              : "linear-gradient(to right,#7c3aed,#a21caf)",
+            color: editMode ? "#9ca3af" : "white",
+            border: "none", cursor: "pointer",
+          }}>
+          {editMode ? (
+            <>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+              Отмена
+            </>
+          ) : (
+            <>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              Редактировать
+            </>
+          )}
+        </button>
+      )}
+      </div>
+
+      {/* ── Форма редактирования (только admin) ─────────────── */}
+      {editMode && user?.role_id === 1 && (
+        <div className="rounded-2xl p-6"
+          style={{ backgroundColor: "#13151c", border: "1px solid rgba(139,92,246,0.3)" }}>
+          <h2 className="text-base font-bold text-white mb-5 flex items-center gap-2">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              style={{ color: "#a78bfa" }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Редактировать персонажа
+          </h2>
+          <EditCharacterForm
+            character={char}
+            onSaved={handleCharSaved}
+            onCancel={() => setEditMode(false)}
+          />
+        </div>
+      )}
 
       {/* ── Карточка персонажа ─────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden"

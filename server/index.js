@@ -15,7 +15,6 @@ app.use("/api/anime",      require("./routes/anime"));
 app.use("/api/watchlist",  require("./routes/watchlist"));
 app.use("/api/user",       require("./routes/user"));
 app.use("/api/characters", require("./routes/characters"));
-// /api/seasons — удалён, сезоны теперь обычные anime
 app.use("/api/media",      require("./routes/media"));
 
 app.listen(process.env.PORT, () => {

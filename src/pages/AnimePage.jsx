@@ -413,20 +413,65 @@ export default function AnimePage() {
             {/* Инфо-сайдбар */}
             <div className="space-y-4" style={{ alignSelf: "start" }}>
               <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)" }}>
-                {[
-                  ["Статус",     STATUS_LABELS[anime.status] || anime.status],
-                  ["Тип",        TYPE_LABELS[anime.type] || anime.type],
-                  ["Эпизоды",    anime.episodes ?? "?"],
-                  ["Длит./эп.",  anime.duration_min ? `${anime.duration_min} мин` : "—"],
-                  ["Трансляция", `${anime.aired_from ? String(anime.aired_from).slice(0, 4) : "?"} – ${anime.aired_to ? String(anime.aired_to).slice(0, 4) : "?"}`],
-                  ["Студия",     anime.studio_name || "—"],
-                ].map(([l, v]) => (
-                  <div key={l} className="flex justify-between items-center px-4 py-2.5 text-sm"
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    <span style={{ color: "#6b7280" }}>{l}</span>
-                    <span className="font-medium text-white text-right ml-4">{v}</span>
-                  </div>
-                ))}
+                {(() => {
+                  // Форматирование даты — полная дата dd.mm.yyyy
+                  const fmtDate = (d) => {
+                    if (!d) return null;
+                    const s = String(d).slice(0, 10); // "2013-04-07"
+                    if (s.length < 10) return s.slice(0, 4);
+                    const [y, m, day] = s.split("-");
+                    return `${day}.${m}.${y}`;
+                  };
+
+                  // Трансляция: для фильмов/одиночных — только дата начала
+                  const isSingle = anime.type === "movie" || anime.type === "special" || anime.type === "ova" || anime.type === "ona" || (anime.episodes != null && Number(anime.episodes) === 1);
+                  const dateFrom = fmtDate(anime.aired_from);
+                  const dateTo   = fmtDate(anime.aired_to);
+                  let airStr;
+                  if (isSingle) {
+                    airStr = dateFrom || "—";
+                  } else if (dateFrom && dateTo) {
+                    airStr = `${dateFrom} — ${dateTo}`;
+                  } else if (dateFrom) {
+                    airStr = `${dateFrom} — …`;
+                  } else {
+                    airStr = "—";
+                  }
+
+                  const rows = [
+                    ["Статус", STATUS_LABELS[anime.status] || anime.status, null],
+                    ["Тип",    TYPE_LABELS[anime.type] || anime.type,       null],
+                  ];
+                  // Эпизоды — только если не одиночный формат или > 1 эпизода
+                  if (!isSingle || (anime.episodes != null && Number(anime.episodes) > 1)) {
+                    rows.push(["Эпизоды", anime.episodes ?? "?", null]);
+                  }
+                  if (anime.duration_min) {
+                    rows.push(["Длит./эп.", `${anime.duration_min} мин`, null]);
+                  }
+                  rows.push(["Трансляция", airStr, null]);
+                  // Студия — кликабельная ссылка на каталог
+                  rows.push(["Студия", anime.studio_name || "—", anime.studio_name
+                    ? `/catalog?studio=${encodeURIComponent(anime.studio_name)}`
+                    : null]);
+
+                  return rows.map(([l, v, href]) => (
+                    <div key={l} className="flex justify-between items-center px-4 py-2.5 text-sm"
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <span style={{ color: "#6b7280" }}>{l}</span>
+                      {href ? (
+                        <Link to={href} className="font-medium text-right ml-4 transition-colors"
+                          style={{ color: "#a78bfa", textDecoration: "none" }}
+                          onMouseEnter={e => e.target.style.color = "#c4b5fd"}
+                          onMouseLeave={e => e.target.style.color = "#a78bfa"}>
+                          {v}
+                        </Link>
+                      ) : (
+                        <span className="font-medium text-white text-right ml-4">{v}</span>
+                      )}
+                    </div>
+                  ));
+                })()}
                 {/* Возрастной рейтинг */}
                 {anime.age_rating && (() => {
                   const s = AGE_RATING_STYLES[anime.age_rating] || { color: "#9ca3af", bg: "rgba(255,255,255,0.05)", desc: "" };
