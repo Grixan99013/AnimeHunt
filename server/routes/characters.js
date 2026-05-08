@@ -14,7 +14,25 @@ function requireAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer "))
     return res.status(401).json({ error: "Не авторизован" });
-  try { req.userId = jwt.verify(auth.slice(7), process.env.JWT_SECRET).id; next(); }
+  try {
+    const p = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+    req.userId = p.id;
+    req.roleId = p.role;
+    next();
+  }
+  catch { res.status(401).json({ error: "Токен недействителен" }); }
+}
+function requireAdmin(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer "))
+    return res.status(401).json({ error: "Не авторизован" });
+  try {
+    const p = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+    if (p.role !== 1) return res.status(403).json({ error: "Только для администраторов" });
+    req.userId = p.id;
+    req.roleId = p.role;
+    next();
+  }
   catch { res.status(401).json({ error: "Токен недействителен" }); }
 }
 
@@ -35,6 +53,18 @@ router.get("/", optionalAuth, async (req, res) => {
       conds.push(`c.gender = $${i}`);
       params.push(gender); i++;
     }
+    if (req.query.role && req.query.role !== "all") {
+      // role_in_anime фильтр: персонаж должен иметь эту роль хотя бы в одном аниме
+      conds.push(`c.id IN (SELECT ca_r.character_id FROM character_appearances ca_r WHERE ca_r.role_in_anime = $${i})`);
+      params.push(req.query.role); i++;
+    }
+    if (req.query.anime_id) {
+      const aid = parseInt(req.query.anime_id, 10);
+      if (!isNaN(aid)) {
+        conds.push(`c.id IN (SELECT ca_a.character_id FROM character_appearances ca_a WHERE ca_a.anime_id = $${i})`);
+        params.push(aid); i++;
+      }
+    }
 
     let orderBy = "favorites_count DESC NULLS LAST, c.name ASC";
     if (sort === "name")   orderBy = "c.name ASC";
@@ -42,6 +72,8 @@ router.get("/", optionalAuth, async (req, res) => {
 
     params.push(Number(limit), Number(offset));
     const li = i++, oi = i++;
+
+    const countSql = `SELECT COUNT(DISTINCT c.id)::int AS total FROM characters c WHERE ${conds.join(" AND ")}`;
 
     const sql = `
       SELECT
@@ -64,8 +96,11 @@ router.get("/", optionalAuth, async (req, res) => {
       LIMIT $${li} OFFSET $${oi}
     `;
 
-    const result = await pool.query(sql, params);
-    res.json(result.rows);
+    const [result, countResult] = await Promise.all([
+      pool.query(sql, params),
+      pool.query(countSql, params.slice(0, params.length - 2)), // без limit/offset
+    ]);
+    res.json({ items: result.rows, total: countResult.rows[0].total });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -417,4 +452,139 @@ router.delete("/:id/ship", requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── DELETE /api/characters/comments/:commentId ───────────────
+router.delete("/comments/:commentId", requireAuth, async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const auth = req.headers.authorization;
+    const p = require("jsonwebtoken").verify(auth.slice(7), process.env.JWT_SECRET);
+    const isModAdmin = p.role === 1 || p.role === 2;
+    const q = await pool.query("SELECT user_id FROM character_comments WHERE id=$1 AND is_deleted=FALSE", [commentId]);
+    if (!q.rows[0]) return res.status(404).json({ error: "Комментарий не найден" });
+    if (q.rows[0].user_id !== req.userId && !isModAdmin)
+      return res.status(403).json({ error: "Нет доступа" });
+    await pool.query("UPDATE character_comments SET is_deleted=TRUE WHERE id=$1", [commentId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── PATCH /api/characters/comments/:commentId ─────────────────
+router.patch("/comments/:commentId", requireAuth, async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: "Пустой комментарий" });
+    const q = await pool.query("SELECT user_id, created_at FROM character_comments WHERE id=$1 AND is_deleted=FALSE", [commentId]);
+    if (!q.rows[0]) return res.status(404).json({ error: "Комментарий не найден" });
+    if (q.rows[0].user_id !== req.userId) return res.status(403).json({ error: "Нет доступа" });
+    const age = (Date.now() - new Date(q.rows[0].created_at).getTime()) / 1000 / 60;
+    if (age > 15) return res.status(403).json({ error: "Редактирование доступно только в течение 15 минут после публикации" });
+    const r = await pool.query(
+      "UPDATE character_comments SET body=$1, updated_at=NOW() WHERE id=$2 RETURNING body, updated_at",
+      [body.trim(), commentId]
+    );
+    res.json({ ok: true, ...r.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
 module.exports = router;
+
+// ══════════════════════════════════════════════════════════════
+// СЭЙЮ — поиск, добавление/удаление к персонажу
+// ══════════════════════════════════════════════════════════════
+
+// GET /api/characters/seiyu/search?q=&limit=10
+router.get("/seiyu/search", async (req, res) => {
+  try {
+    const { q = "", limit = 10 } = req.query;
+    const r = await pool.query(
+      `SELECT id, name, name_jp, image_url, agency
+       FROM seiyu
+       WHERE name ILIKE $1 OR name_jp ILIKE $1
+       ORDER BY name LIMIT $2`,
+      [`%${q}%`, Number(limit)]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/characters/seiyu — создать нового сэйю
+router.post("/seiyu", requireAdmin, async (req, res) => {
+  try {
+    const { name, name_jp, bio, image_url, born_at, agency } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Укажите имя" });
+    const r = await pool.query(
+      `INSERT INTO seiyu (name, name_jp, bio, image_url, born_at, agency)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [name.trim(), name_jp?.trim()||null, bio?.trim()||null,
+       image_url?.trim()||null, born_at||null, agency?.trim()||null]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/characters/:id/seiyu — привязать сэйю к персонажу
+router.post("/:id/seiyu", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { seiyu_id, language = "ja" } = req.body;
+    if (!seiyu_id) return res.status(400).json({ error: "Укажите seiyu_id" });
+    await pool.query(
+      `INSERT INTO character_seiyu (character_id, seiyu_id, language)
+       VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+      [id, seiyu_id, language]
+    );
+    const s = await pool.query(
+      "SELECT s.*, cs.language FROM seiyu s JOIN character_seiyu cs ON cs.seiyu_id=s.id WHERE cs.character_id=$1 AND cs.seiyu_id=$2",
+      [id, seiyu_id]
+    );
+    res.status(201).json(s.rows[0] || { ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/characters/:id/seiyu/:seiyuId
+router.delete("/:id/seiyu/:seiyuId", requireAdmin, async (req, res) => {
+  try {
+    const { id, seiyuId } = req.params;
+    await pool.query(
+      "DELETE FROM character_seiyu WHERE character_id=$1 AND seiyu_id=$2",
+      [id, seiyuId]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════
+// АВТОРЫ (STAFF) — поиск, добавление, привязка к аниме
+// ══════════════════════════════════════════════════════════════
+
+// GET /api/characters/staff/search?q=&limit=10
+router.get("/staff/search", async (req, res) => {
+  try {
+    const { q = "", limit = 10 } = req.query;
+    const r = await pool.query(
+      `SELECT id, name, name_jp, role, image_url
+       FROM staff
+       WHERE name ILIKE $1 OR name_jp ILIKE $1
+       ORDER BY name LIMIT $2`,
+      [`%${q}%`, Number(limit)]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/characters/staff — создать нового автора
+router.post("/staff", requireAdmin, async (req, res) => {
+  try {
+    const { name, name_jp, role, bio, image_url, born_at } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Укажите имя" });
+    const r = await pool.query(
+      `INSERT INTO staff (name, name_jp, role, bio, image_url, born_at)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [name.trim(), name_jp?.trim()||null, role?.trim()||null,
+       bio?.trim()||null, image_url?.trim()||null, born_at||null]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});

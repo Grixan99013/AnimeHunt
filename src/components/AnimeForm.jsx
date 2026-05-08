@@ -76,6 +76,10 @@ export default function AnimeForm({
   const [themesText,  setThemesText]  = useState("");
   const [posterBusy,  setPosterBusy]  = useState(false);
   const [bannerBusy,  setBannerBusy]  = useState(false);
+  // Расписание серий
+  const [airWeekday,  setAirWeekday]  = useState("");  // "" | "0".."6"
+  const [airTime,     setAirTime]     = useState("");  // "HH:MM"
+  const [episodesAired, setEpisodesAired] = useState("");
 
   // Серия
   const [seriesList,   setSeriesList]   = useState([]);   // [{id, title, entries:[]}]
@@ -117,6 +121,9 @@ export default function AnimeForm({
     setAgeRating(initial.age_rating || "");
     const th = Array.isArray(initial.themes) ? initial.themes : [];
     setThemesText(th.join(", "));
+    setAirWeekday(initial.air_weekday != null ? String(initial.air_weekday) : "");
+    setAirTime(initial.air_time ? String(initial.air_time).slice(0,5) : "");
+    setEpisodesAired(initial.episodes_aired != null ? String(initial.episodes_aired) : "0");
   }, [initial]);
 
   // Жанры из initial
@@ -171,6 +178,11 @@ export default function AnimeForm({
     };
     if (studioNewName.trim()) body.studio_new_name = studioNewName.trim();
     else body.studio_id = studioId === "" ? null : Number(studioId);
+
+    // Расписание
+    body.air_weekday    = airWeekday !== "" ? Number(airWeekday) : null;
+    body.air_time       = airTime || null;
+    body.episodes_aired = episodesAired !== "" ? Number(episodesAired) : 0;
 
     // Серия
     if (seriesMode === "none") {
@@ -360,6 +372,45 @@ export default function AnimeForm({
           </div>
         </div>
       </Section>
+
+      {/* ── Расписание серий (только для онгоингов) ────────── */}
+      {status === "ongoing" && (
+        <Section title="📅 Расписание серий">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>День выхода новой серии</label>
+              <select value={airWeekday} onChange={e => setAirWeekday(e.target.value)}
+                style={{ ...inputStyle, cursor: "pointer" }}>
+                <option value="">— не задан —</option>
+                <option value="0">Понедельник</option>
+                <option value="1">Вторник</option>
+                <option value="2">Среда</option>
+                <option value="3">Четверг</option>
+                <option value="4">Пятница</option>
+                <option value="5">Суббота</option>
+                <option value="6">Воскресенье</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Время выхода (МСК)</label>
+              <input type="time" value={airTime} onChange={e => setAirTime(e.target.value)}
+                style={inputStyle} onFocus={focusIn} onBlur={focusOut} />
+            </div>
+          </div>
+          <div style={{ maxWidth: "14rem" }}>
+            <label style={labelStyle}>Серий уже вышло</label>
+            <input type="number" min={0} value={episodesAired}
+              onChange={e => setEpisodesAired(e.target.value)}
+              placeholder="0"
+              style={inputStyle} onFocus={focusIn} onBlur={focusOut} />
+          </div>
+          {airWeekday !== "" && airTime && (
+            <p style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 4 }}>
+              💡 Следующая дата выхода будет вычислена автоматически. Планировщик обновляет данные каждые 5 минут и отправляет уведомления пользователям в списке «Смотрю».
+            </p>
+          )}
+        </Section>
+      )}
 
       {/* ── Студия ─────────────────────────────────────────── */}
       <Section title="Студия">

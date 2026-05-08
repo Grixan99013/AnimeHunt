@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: animehunt_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-animehunt}
+      POSTGRES_USER:     ${DB_USER:-animehunt}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # При первом запуске применяем миграции
+      - ./server/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-animehunt}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - animehunt_net
+
+  # ── Express + React SPA ───────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    container_name: animehunt_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV:    production
+      PORT:        3001
+      DB_HOST:     db
+      DB_PORT:     5432
+      DB_NAME:     ${DB_NAME:-animehunt}
+      DB_USER:     ${DB_USER:-animehunt}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET:  ${JWT_SECRET:?JWT_SECRET is required}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      SITE_URL:    ${SITE_URL:-https://animehunt.ru}
+    volumes:
+      # Загрузки пользователей — монтируем вне контейнера
+      - uploads_data:/app/server/uploads
+    ports:
+      - "${APP_PORT:-3001}:3001"
+    networks:
+      - animehunt_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  pg_data:      { driver: local }
+  uploads_data: { driver: local }
+
+networks:
+  animehunt_net:
+    driver: bridge

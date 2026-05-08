@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../App";
+import ReportModal from "./ReportModal";
 
 // ─────────────────────────────────────────────────────────────
 // Рендер форматированного текста
@@ -23,7 +24,7 @@ function SpoilerSpan({ text }) {
       style={{
         display: "inline-flex", alignItems: "center", gap: "6px",
         background: "linear-gradient(to right,#7c3aed,#a21caf)",
-        color: "white", border: "none", borderRadius: "8px",
+        color: "var(--text-primary)", border: "none", borderRadius: "8px",
         padding: "2px 10px", fontSize: "0.72rem", fontWeight: 700,
         cursor: "pointer", verticalAlign: "middle",
       }}>
@@ -70,7 +71,7 @@ function RenderedBody({ body }) {
     });
   }
   return (
-    <p className="text-sm leading-relaxed" style={{ color: "#d1d5db", wordBreak: "break-word" }}>
+    <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)", wordBreak: "break-word" }}>
       {segments}
     </p>
   );
@@ -87,7 +88,7 @@ function UserAvatar({ username, avatarUrl, size = 28 }) {
       style={{
         width: size, height: size,
         background: avatarUrl ? "transparent" : "linear-gradient(135deg,#7c3aed,#a21caf)",
-        border: "1px solid rgba(255,255,255,0.12)",
+        border: "1px solid var(--border)",
         fontSize: size * 0.4,
       }}>
       {avatarUrl
@@ -102,7 +103,7 @@ function UserLink({ username }) {
   return (
     <Link
       to={`/profile/${username}`}
-      className="text-sm font-semibold text-white transition-colors hover:text-violet-300"
+      className="text-sm font-semibold transition-colors hover:text-violet-300" style={{ color: "var(--text-primary)" }}
       style={{ textDecoration: "none" }}>
       {username}
     </Link>
@@ -176,14 +177,14 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
         {tools.map(t => (
           <button key={t.label} type="button" title={t.title} onClick={t.action}
             className="w-8 h-7 rounded flex items-center justify-center text-xs transition-colors"
-            style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#d1d5db", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer", ...t.style }}>
+            style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", cursor: "pointer", ...t.style }}>
             {t.label}
           </button>
         ))}
-        <div style={{ width: 1, height: 18, backgroundColor: "rgba(255,255,255,0.1)", margin: "0 4px" }} />
+        <div style={{ width: 1, height: 18, backgroundColor: "var(--border)", margin: "0 4px" }} />
         <button type="button" title="Прикрепить изображение (до 5 МБ)" onClick={() => fileRef.current?.click()}
           className="flex items-center gap-1.5 h-7 px-2.5 rounded text-xs"
-          style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#9ca3af", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer" }}>
+          style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border)", cursor: "pointer" }}>
           <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -206,19 +207,19 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
           if (e.ctrlKey && e.key === "i") { e.preventDefault(); insert("_", "_"); }
           if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); handleSubmit(e); }
         }}
-        className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none resize-y"
-        style={{ backgroundColor: "#0d0f14", border: "1px solid rgba(255,255,255,0.1)", lineHeight: 1.6, minHeight: "80px" }}
+        className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-y"
+        style={{ backgroundColor: "var(--bg-base)", border: "1px solid var(--border)", lineHeight: 1.6, minHeight: "80px", color: "var(--text-primary)" }}
         onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.4)"}
-        onBlur={e  => e.target.style.borderColor = "rgba(255,255,255,0.1)"}
+        onBlur={e  => e.target.style.borderColor = "var(--border)"}
       />
 
       {img && (
         <div className="relative inline-block">
           <img src={img.url} alt="preview" className="max-h-36 rounded-xl object-cover"
-            style={{ maxWidth: "220px", border: "1px solid rgba(255,255,255,0.1)" }} />
+            style={{ maxWidth: "220px", border: "1px solid var(--border)" }} />
           <button type="button" onClick={() => { setImg(null); if (fileRef.current) fileRef.current.value = ""; }}
             className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-            style={{ backgroundColor: "#ef4444", color: "white", border: "none", cursor: "pointer" }}>
+            style={{ backgroundColor: "#ef4444", color: "var(--text-primary)", border: "none", cursor: "pointer" }}>
             ✕
           </button>
         </div>
@@ -227,17 +228,17 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
       <div className="flex items-center gap-2">
         <button type="submit" disabled={!canSend}
           className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{ background: canSend ? "linear-gradient(to right,#7c3aed,#a21caf)" : "rgba(255,255,255,0.08)", opacity: canSend ? 1 : 0.5, cursor: canSend ? "pointer" : "not-allowed", border: "none" }}>
+          style={{ background: canSend ? "linear-gradient(to right,#7c3aed,#a21caf)" : "var(--bg-elevated)", opacity: canSend ? 1 : 0.5, cursor: canSend ? "pointer" : "not-allowed", border: "none", color: canSend ? "#ffffff" : "var(--text-muted)" }}>
           {submitting ? "Отправка…" : "Отправить"}
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel}
             className="px-4 py-2 rounded-xl text-sm font-medium"
-            style={{ backgroundColor: "rgba(255,255,255,0.05)", color: "#9ca3af", border: "none", cursor: "pointer" }}>
+            style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-muted)", border: "none", cursor: "pointer" }}>
             Отмена
           </button>
         )}
-        <span className="text-xs ml-1" style={{ color: "#4b5563" }}>Ctrl+Enter</span>
+        <span className="text-xs ml-1" style={{ color: "var(--text-veryfaint)" }}>Ctrl+Enter</span>
       </div>
     </form>
   );
@@ -246,10 +247,29 @@ function CommentEditor({ onSubmit, submitting, placeholder, autoFocus = false, o
 // ─────────────────────────────────────────────────────────────
 // Карточка комментария (рекурсивная)
 // ─────────────────────────────────────────────────────────────
-function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
-  const [showReplies, setShowReplies] = useState(true);
+function CommentCard({ c, allComments, onReply, onDelete, onEdit, depth, user, loginPath }) {
+  const [showReplies,  setShowReplies]  = useState(true);
+  const [editing,      setEditing]      = useState(false);
+  const [editBody,     setEditBody]     = useState(c.body || "");
+  const [editSaving,   setEditSaving]   = useState(false);
   const replies  = allComments.filter(r => String(r.parent_id) === String(c.id));
   const MAX_DEPTH = 4;
+
+  const isOwn     = user && user.id === c.user_id;
+  const isModAdmin= user && (user.role_id === 1 || user.role_id === 2);
+  // Редактирование доступно автору в течение 15 мин
+  const canEdit = isOwn && (Date.now() - new Date(c.created_at).getTime()) < 15 * 60 * 1000;
+  const canDelete = isOwn || isModAdmin;
+
+  const submitEdit = async () => {
+    if (!editBody.trim()) return;
+    setEditSaving(true);
+    try {
+      await onEdit(c.id, editBody.trim());
+      setEditing(false);
+    } catch (e) { alert(e.message); }
+    finally { setEditSaving(false); }
+  };
 
   const dateStr = new Date(c.created_at).toLocaleString("ru-RU", {
     day: "2-digit", month: "2-digit", year: "numeric",
@@ -260,8 +280,8 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
     <div>
       <div className="rounded-xl px-4 py-3"
         style={{
-          backgroundColor: depth === 0 ? "#13151c" : "rgba(255,255,255,0.025)",
-          border: `1px solid ${depth === 0 ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)"}`,
+          backgroundColor: depth === 0 ? "var(--bg-surface)" : "var(--bg-elevated)",
+          border: `1px solid var(--border)`,
         }}>
 
         {/* Шапка: аватар + ник + дата */}
@@ -276,7 +296,7 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
 
           {/* Ответ кому — показываем при depth=0 */}
           {c.parent_username && depth === 0 && (
-            <span className="text-xs flex items-center gap-1" style={{ color: "#6b7280" }}>
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-faint)" }}>
               <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
               </svg>
@@ -288,18 +308,38 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
             </span>
           )}
 
-          <span className="text-xs ml-auto flex-shrink-0" style={{ color: "#4b5563" }}>{dateStr}</span>
+          <span className="text-xs ml-auto flex-shrink-0" style={{ color: "var(--text-veryfaint)" }}>{dateStr}</span>
         </div>
 
-        {/* Тело */}
-        <RenderedBody body={c.body} />
+        {/* Тело — или форма редактирования */}
+        {editing ? (
+          <div className="mt-1 space-y-2">
+            <textarea value={editBody} onChange={e => setEditBody(e.target.value)} rows={3}
+              className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
+              style={{ backgroundColor: "var(--bg-base)", border: "1px solid rgba(139,92,246,0.4)", color: "var(--text-primary)" }} />
+            <div className="flex gap-2">
+              <button onClick={submitEdit} disabled={editSaving}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: "rgba(139,92,246,0.3)", color: "#c4b5fd", border: "none", cursor: "pointer" }}>
+                {editSaving ? "…" : "Сохранить"}
+              </button>
+              <button onClick={() => { setEditing(false); setEditBody(c.body || ""); }}
+                className="text-xs px-3 py-1.5 rounded-lg"
+                style={{ background: "var(--bg-elevated)", color: "var(--text-muted)", border: "none", cursor: "pointer" }}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        ) : (
+          <RenderedBody body={c.body} />
+        )}
 
         {/* Прикреплённое изображение */}
         {c.image_url && (
           <div className="mt-2">
             <a href={c.image_url} target="_blank" rel="noopener noreferrer">
               <img src={c.image_url} alt="вложение" className="rounded-xl object-cover cursor-zoom-in"
-                style={{ maxHeight: "200px", maxWidth: "320px", border: "1px solid rgba(255,255,255,0.08)" }} />
+                style={{ maxHeight: "200px", maxWidth: "320px", border: "1px solid var(--border)" }} />
             </a>
           </div>
         )}
@@ -309,22 +349,41 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
           {user ? (
             <button onClick={() => onReply(c)}
               className="text-xs flex items-center gap-1 transition-colors"
-              style={{ color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}
+              style={{ color: "var(--text-faint)", background: "none", border: "none", cursor: "pointer" }}
               onMouseEnter={e => e.currentTarget.style.color = "#a78bfa"}
-              onMouseLeave={e => e.currentTarget.style.color = "#6b7280"}>
+              onMouseLeave={e => e.currentTarget.style.color = "var(--text-faint)"}>
               <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
               </svg>
               Ответить
             </button>
           ) : (
-            <Link to={loginPath} className="text-xs" style={{ color: "#6b7280" }}>Войдите, чтобы ответить</Link>
+            <Link to={loginPath} className="text-xs" style={{ color: "var(--text-faint)" }}>Войдите, чтобы ответить</Link>
           )}
+          {canEdit && !editing && (
+            <button onClick={() => setEditing(true)}
+              className="text-xs flex items-center gap-1 transition-colors"
+              style={{ color: "var(--text-faint)", background: "none", border: "none", cursor: "pointer" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#60a5fa"}
+              onMouseLeave={e => e.currentTarget.style.color = "var(--text-faint)"}>
+              ✏ Изменить
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={() => { if (window.confirm("Удалить комментарий?")) onDelete(c.id); }}
+              className="text-xs flex items-center gap-1 transition-colors"
+              style={{ color: "var(--text-faint)", background: "none", border: "none", cursor: "pointer" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#f87171"}
+              onMouseLeave={e => e.currentTarget.style.color = "var(--text-faint)"}>
+              🗑 Удалить
+            </button>
+          )}
+          {!canDelete && <ReportModal commentId={c.id} small />}
 
           {replies.length > 0 && (
             <button onClick={() => setShowReplies(v => !v)}
               className="text-xs flex items-center gap-1"
-              style={{ color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
+              style={{ color: "var(--text-faint)", background: "none", border: "none", cursor: "pointer" }}>
               <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                 style={{ transform: showReplies ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
@@ -342,6 +401,7 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
           style={{ borderLeft: "2px solid rgba(139,92,246,0.2)", marginLeft: "14px" }}>
           {replies.map(r => (
             <CommentCard key={r.id} c={r} allComments={allComments} onReply={onReply}
+              onDelete={onDelete} onEdit={onEdit}
               depth={Math.min(depth + 1, MAX_DEPTH)} user={user} loginPath={loginPath} />
           ))}
         </div>
@@ -356,6 +416,8 @@ function CommentCard({ c, allComments, onReply, depth, user, loginPath }) {
 export default function CommentBlock({
   comments: initialComments = [],
   onPost,
+  onDelete,
+  onEdit,
   placeholder   = "Поделитесь впечатлениями…",
   loginPath     = "/login",
   previewCount  = 5,
@@ -370,6 +432,24 @@ export default function CommentBlock({
   useEffect(() => {
     if (initialComments.length > 0) setComments(initialComments);
   }, [initialComments]);
+
+  const handleDelete = useCallback(async (commentId) => {
+    try {
+      if (onDelete) await onDelete(commentId);
+      setComments(prev => prev.map(c =>
+        String(c.id) === String(commentId)
+          ? { ...c, body: "[удалено]", is_deleted: true, image_url: null }
+          : c
+      ));
+    } catch (e) { alert(e.message); }
+  }, [onDelete]);
+
+  const handleEdit = useCallback(async (commentId, body) => {
+    if (onEdit) await onEdit(commentId, body);
+    setComments(prev => prev.map(c =>
+      String(c.id) === String(commentId) ? { ...c, body } : c
+    ));
+  }, [onEdit]);
 
   const handleReply = useCallback((c) => {
     setReplyTo({ id: c.id, username: c.username });
@@ -398,9 +478,9 @@ export default function CommentBlock({
     <div className="space-y-5">
       {/* Заголовок */}
       <div className="flex items-center gap-2">
-        <h3 className="text-base font-bold text-white">Комментарии</h3>
+        <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Комментарии</h3>
         {comments.length > 0 && (
-          <span className="text-sm" style={{ color: "#6b7280" }}>({comments.length})</span>
+          <span className="text-sm" style={{ color: "var(--text-faint)" }}>({comments.length})</span>
         )}
       </div>
 
@@ -416,7 +496,7 @@ export default function CommentBlock({
         </div>
       ) : (
         <div className="rounded-xl px-4 py-3 text-sm"
-          style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.06)", color: "#6b7280" }}>
+          style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-faint)" }}>
           <Link to={loginPath} style={{ color: "#a78bfa" }}>Войдите</Link>, чтобы оставить комментарий.
         </div>
       )}
@@ -424,14 +504,14 @@ export default function CommentBlock({
       {/* Форма ответа */}
       {replyTo && (
         <div ref={replyBoxRef} className="rounded-xl p-4"
-          style={{ backgroundColor: "#13151c", border: "1px solid rgba(139,92,246,0.3)" }}>
+          style={{ backgroundColor: "var(--bg-surface)", border: "1px solid rgba(139,92,246,0.35)" }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm">
               <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                 style={{ color: "#a78bfa" }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
               </svg>
-              <span style={{ color: "#9ca3af" }}>
+              <span style={{ color: "var(--text-muted)" }}>
                 Ответ для{" "}
                 <Link to={`/profile/${replyTo.username}`}
                   style={{ color: "#c4b5fd", fontWeight: 600, textDecoration: "none" }}>
@@ -440,7 +520,7 @@ export default function CommentBlock({
               </span>
             </div>
             <button onClick={() => setReplyTo(null)}
-              style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "1rem" }}>
+              style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: "1rem" }}>
               ✕
             </button>
           </div>
@@ -452,18 +532,19 @@ export default function CommentBlock({
 
       {/* Список */}
       {roots.length === 0 ? (
-        <p className="text-sm py-2" style={{ color: "#4b5563" }}>Комментариев пока нет. Будьте первым!</p>
+        <p className="text-sm py-2" style={{ color: "var(--text-veryfaint)" }}>Комментариев пока нет. Будьте первым!</p>
       ) : (
         <div className="space-y-3">
           {visible.map(c => (
             <CommentCard key={c.id} c={c} allComments={comments} onReply={handleReply}
+              onDelete={handleDelete} onEdit={handleEdit}
               depth={0} user={user} loginPath={loginPath} />
           ))}
 
           {!showAll && hiddenCount > 0 && (
             <button onClick={() => setShowAll(true)}
               className="w-full py-2.5 rounded-xl text-sm font-medium"
-              style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#9ca3af", cursor: "pointer" }}>
+              style={{ backgroundColor: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-muted)", cursor: "pointer" }}>
               Показать ещё {hiddenCount}{" "}
               {hiddenCount === 1 ? "комментарий" : hiddenCount < 5 ? "комментария" : "комментариев"}
             </button>
@@ -471,7 +552,7 @@ export default function CommentBlock({
           {showAll && roots.length > previewCount && (
             <button onClick={() => setShowAll(false)}
               className="w-full py-2.5 rounded-xl text-sm font-medium"
-              style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#9ca3af", cursor: "pointer" }}>
+              style={{ backgroundColor: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-muted)", cursor: "pointer" }}>
               Свернуть
             </button>
           )}

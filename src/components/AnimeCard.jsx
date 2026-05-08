@@ -10,7 +10,7 @@ const STATUS_STYLES = {
 };
 
 export default function AnimeCard({ anime }) {
-  const statusStyle   = STATUS_STYLES[anime.status] || { background: "rgba(107,114,128,0.15)", color: "#9ca3af" };
+  const statusStyle   = STATUS_STYLES[anime.status] || { background: "rgba(107,114,128,0.15)", color: "var(--text-muted)" };
   const displayRating = anime.avg_rating ? Number(anime.avg_rating).toFixed(1) : null;
   // genres приходит как массив строк из БД
   const genres = Array.isArray(anime.genres) ? anime.genres.filter(Boolean).slice(0, 3) : [];
@@ -18,17 +18,17 @@ export default function AnimeCard({ anime }) {
   return (
     <Link to={`/anime/${anime.id}`}
       className="group relative flex flex-col rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
-      style={{ backgroundColor: "#13151c", border: "1px solid rgba(255,255,255,0.05)", textDecoration: "none" }}
+      style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", textDecoration: "none" }}
       onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)"}
-      onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"}>
+      onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
 
-      <div className="relative overflow-hidden" style={{ height: "256px", backgroundColor: "#1a1d26" }}>
+      <div className="relative overflow-hidden" style={{ height: "256px", backgroundColor: "var(--bg-elevated)" }}>
         {anime.poster_url ? (
           <img src={anime.poster_url} alt={anime.title}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center" style={{ color: "#374151" }}>
+          <div className="w-full h-full flex items-center justify-center" style={{ color: "var(--text-veryfaint)" }}>
             <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
                 d="M15 10l4.553-2.069A1 1 0 0121 8.845v6.31a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -63,17 +63,17 @@ export default function AnimeCard({ anime }) {
       </div>
 
       <div className="p-4 flex flex-col flex-1 gap-2">
-        <h3 className="font-bold text-sm leading-tight line-clamp-2 text-white">{anime.title}</h3>
-        {anime.title_jp && <p className="text-xs" style={{ color: "#6b7280" }}>{anime.title_jp}</p>}
+        <h3 className="font-bold text-sm leading-tight line-clamp-2" style={{ color: "var(--text-primary)" }}>{anime.title}</h3>
+        {anime.title_jp && <p className="text-xs" style={{ color: "var(--text-faint)" }}>{anime.title_jp}</p>}
 
         <div className="flex flex-wrap gap-1 mt-1">
           {genres.map(g => (
             <span key={g} className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(255,255,255,0.05)", color: "#9ca3af" }}>{g}</span>
+              style={{ background: "var(--border)", color: "var(--text-muted)" }}>{g}</span>
           ))}
         </div>
 
-        <div className="mt-auto pt-2 flex items-center justify-between text-xs" style={{ color: "#6b7280" }}>
+        <div className="mt-auto pt-2 flex items-center justify-between text-xs" style={{ color: "var(--text-faint)" }}>
           <span>{anime.studio_name || "—"}</span>
           <span>{anime.aired_from ? String(anime.aired_from).slice(0, 4) : "TBA"}</span>
         </div>

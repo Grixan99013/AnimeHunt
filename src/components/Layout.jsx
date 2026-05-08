@@ -3,6 +3,8 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../App";
 import { useState, useEffect, useRef } from "react";
 import { globalSearch } from "../api/api";
+import NotificationBell from "./NotificationBell";
+import { useTheme } from "../context/ThemeContext";
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
@@ -74,9 +76,9 @@ export default function Layout({ children }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#0d0f14", color: "white" }}>
-      <header className="sticky top-0 z-50 backdrop-blur-md border-b border-white/5"
-        style={{ backgroundColor: "rgba(13,15,20,0.92)" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}>
+      <header className="sticky top-0 z-50 backdrop-blur-md border-b"
+        style={{ backgroundColor: "var(--header-bg)", borderColor: "var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
 
           {/* Логотип */}
@@ -85,7 +87,7 @@ export default function Layout({ children }) {
               style={{ background: "linear-gradient(to right,#a78bfa,#e879f9)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
               ANIME
             </span>
-            <span className="text-2xl font-black tracking-tighter text-white">HUNT</span>
+            <span className="text-2xl font-black tracking-tighter logo-hunt" style={{ color: "var(--text-primary)" }}>HUNT</span>
           </Link>
 
           {/* Навигация — десктоп */}
@@ -95,7 +97,7 @@ export default function Layout({ children }) {
                 className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
                 style={{
                   backgroundColor: location.pathname === link.to ? "rgba(139,92,246,0.2)" : "transparent",
-                  color: location.pathname === link.to ? "#c4b5fd" : "#9ca3af",
+                  color: location.pathname === link.to ? "#c4b5fd" : "var(--text-muted)",
                 }}>
                 {link.label}
               </Link>
@@ -116,8 +118,8 @@ export default function Layout({ children }) {
                   onChange={handleSearchInput}
                   onFocus={() => searchQuery.trim() && setSearchOpen(true)}
                   placeholder="Поиск аниме и персонажей…"
-                  className="w-full rounded-xl py-2 pl-9 pr-3 text-sm text-white outline-none"
-                  style={{ backgroundColor: "#1a1d26", border: "1px solid rgba(255,255,255,0.08)" }}
+                  className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none"
+                  style={{ backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 />
               </div>
             </form>
@@ -125,7 +127,7 @@ export default function Layout({ children }) {
             {/* Выпадающий список результатов */}
             {searchOpen && searchQuery.trim() && (
               <div className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-hidden shadow-2xl z-50"
-                style={{ backgroundColor: "#1a1d26", border: "1px solid rgba(255,255,255,0.08)", maxHeight: "420px", overflowY: "auto" }}>
+                style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", maxHeight: "420px", overflowY: "auto" }}>
                 {searchLoading ? (
                   <div className="flex items-center justify-center py-6">
                     <div className="w-5 h-5 rounded-full border-2 animate-spin"
@@ -156,7 +158,7 @@ export default function Layout({ children }) {
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>
                             <div className="w-8 h-11 rounded-lg overflow-hidden flex-shrink-0"
-                              style={{ backgroundColor: "#0d0f14" }}>
+                              style={{ backgroundColor: "var(--bg-base)" }}>
                               {a.poster_url
                                 ? <img src={a.poster_url} alt="" className="w-full h-full object-cover" />
                                 : <div className="w-full h-full" />}
@@ -198,7 +200,7 @@ export default function Layout({ children }) {
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>
                             <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
-                              style={{ backgroundColor: "#0d0f14", border: "1px solid rgba(255,255,255,0.08)" }}>
+                              style={{ backgroundColor: "var(--bg-base)", border: "1px solid var(--border)" }}>
                               {c.image_url
                                 ? <img src={c.image_url} alt="" className="w-full h-full object-cover" />
                                 : <div className="w-full h-full flex items-center justify-center text-xs font-bold"
@@ -227,10 +229,12 @@ export default function Layout({ children }) {
 
           {/* Правая часть — авторизация */}
           <div className="hidden md:flex items-center gap-3 ml-auto flex-shrink-0">
+            <ThemeToggle />
+            {user && <NotificationBell />}
             {user ? (
               <>
                 <Link to="/profile" className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
-                  style={{ color: "#d1d5db" }}>
+                  style={{ color: "var(--text-secondary)" }}>
                   <span className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
                     style={{ background: user.avatar_url ? "transparent" : "linear-gradient(135deg,#7c3aed,#a21caf)", border: "1px solid rgba(255,255,255,0.15)" }}>
                     {user.avatar_url
@@ -241,14 +245,14 @@ export default function Layout({ children }) {
                 </Link>
                 <button onClick={handleLogout}
                   className="px-4 py-1.5 rounded-lg text-sm font-medium border"
-                  style={{ color: "#9ca3af", borderColor: "rgba(255,255,255,0.1)", background: "transparent", cursor: "pointer" }}>
+                  style={{ color: "var(--text-muted)", borderColor: "var(--border)", background: "transparent", cursor: "pointer" }}>
                   Выйти
                 </button>
               </>
             ) : (
               <>
                 <Link to="/login" className="px-4 py-1.5 rounded-lg text-sm font-medium"
-                  style={{ color: "#d1d5db" }}>Войти</Link>
+                  style={{ color: "var(--text-secondary)" }}>Войти</Link>
                 <Link to="/register" className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
                   style={{ background: "linear-gradient(to right,#7c3aed,#a21caf)" }}>Регистрация</Link>
               </>
@@ -257,7 +261,7 @@ export default function Layout({ children }) {
 
           {/* Бургер — мобильный */}
           <button className="md:hidden p-2 ml-auto"
-            style={{ color: "#9ca3af", background: "transparent", border: "none", cursor: "pointer" }}
+            style={{ color: "var(--text-muted)", background: "transparent", border: "none", cursor: "pointer" }}
             onClick={() => setMenuOpen(!menuOpen)}>
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               {menuOpen
@@ -271,11 +275,11 @@ export default function Layout({ children }) {
         {/* Мобильное меню */}
         {menuOpen && (
           <div className="md:hidden border-t border-white/5 px-4 py-3 space-y-1"
-            style={{ backgroundColor: "#13151c" }}>
+            style={{ backgroundColor: "var(--bg-surface)" }}>
             {navLinks.map(link => (
               <Link key={link.to} to={link.to} onClick={() => setMenuOpen(false)}
                 className="block px-3 py-2 rounded-lg text-sm"
-                style={{ color: location.pathname === link.to ? "#c4b5fd" : "#d1d5db",
+                style={{ color: location.pathname === link.to ? "#c4b5fd" : "var(--text-secondary)",
                           backgroundColor: location.pathname === link.to ? "rgba(139,92,246,0.15)" : "transparent" }}>
                 {link.label}
               </Link>
@@ -287,16 +291,25 @@ export default function Layout({ children }) {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Поиск…"
-                className="w-full rounded-xl px-4 py-2 text-sm text-white outline-none"
-                style={{ backgroundColor: "#1a1d26", border: "1px solid rgba(255,255,255,0.1)" }}
+                className="w-full rounded-xl px-4 py-2 text-sm outline-none"
+                style={{ backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
               />
             </form>
             <div className="pt-2 border-t border-white/5 flex flex-col gap-2">
+              {/* Переключатель темы в мобильном меню */}
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-sm" style={{ color: "var(--text-muted)" }}>Тема</span>
+                <ThemeToggle />
+              </div>
               {user ? (
                 <>
                   <Link to="/profile" onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm" style={{ color: "#d1d5db" }}>
+                    className="block px-3 py-2 text-sm" style={{ color: "var(--text-secondary)" }}>
                     Профиль ({user.username})
+                  </Link>
+                  <Link to="/notifications" onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                    🔔 Уведомления
                   </Link>
                   <button onClick={() => { handleLogout(); setMenuOpen(false); }}
                     className="text-left px-3 py-2 text-sm"
@@ -307,7 +320,7 @@ export default function Layout({ children }) {
               ) : (
                 <>
                   <Link to="/login" onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm" style={{ color: "#d1d5db" }}>Войти</Link>
+                    className="block px-3 py-2 text-sm" style={{ color: "var(--text-secondary)" }}>Войти</Link>
                   <Link to="/register" onClick={() => setMenuOpen(false)}
                     className="block px-3 py-2 text-sm" style={{ color: "#a78bfa" }}>Регистрация</Link>
                 </>
@@ -319,8 +332,8 @@ export default function Layout({ children }) {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">{children}</main>
 
-      <footer className="mt-16 border-t border-white/5 py-8 text-center text-sm"
-        style={{ color: "#4b5563" }}>
+      <footer className="mt-16 border-t py-8 text-center text-sm"
+        style={{ color: "var(--text-faint)", borderColor: "var(--border)" }}>
         <p className="font-bold text-lg mb-1"
           style={{ background: "linear-gradient(to right,#a78bfa,#e879f9)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
           ANIMEHUNT
@@ -328,5 +341,42 @@ export default function Layout({ children }) {
         <p>{new Date().getFullYear()}</p>
       </footer>
     </div>
+  );
+}
+
+// ── Кнопка переключения темы ──────────────────────────────────
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const isDark = theme === "dark";
+
+  return (
+    <button
+      onClick={toggle}
+      title={isDark ? "Включить светлую тему" : "Включить тёмную тему"}
+      style={{
+        background: "none", border: "none", cursor: "pointer",
+        padding: 6, borderRadius: 8, display: "flex", alignItems: "center",
+        color: "var(--text-faint)",
+        transition: "color .15s",
+      }}
+      onMouseEnter={e => e.currentTarget.style.color = "var(--accent-light)"}
+      onMouseLeave={e => e.currentTarget.style.color = "var(--text-faint)"}
+    >
+      {isDark ? (
+        /* Солнце */
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      ) : (
+        /* Луна */
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      )}
+    </button>
   );
 }

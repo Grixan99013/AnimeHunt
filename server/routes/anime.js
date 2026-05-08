@@ -3,11 +3,17 @@ const router = require("express").Router();
 const pool   = require("../db");
 const jwt    = require("jsonwebtoken");
 const { requireAdmin } = require("../middleware/admin");
+const { validate, schemas } = require("../middleware/validate");
+const { createNotification } = require("./notifications");
 
 function optionalAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (auth?.startsWith("Bearer ")) {
-    try { req.userId = jwt.verify(auth.slice(7), process.env.JWT_SECRET).id; } catch {}
+    try {
+      const p = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+      req.userId = p.id;
+      req.roleId = p.role;
+    } catch {}
   }
   next();
 }
@@ -15,8 +21,16 @@ function requireAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer "))
     return res.status(401).json({ error: "Не авторизован" });
-  try { req.userId = jwt.verify(auth.slice(7), process.env.JWT_SECRET).id; next(); }
-  catch { res.status(401).json({ error: "Токен недействителен" }); }
+  try {
+    const p = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+    req.userId = p.id;
+    req.roleId = p.role;
+    next();
+  } catch (e) {
+    if (e.name === "TokenExpiredError")
+      return res.status(401).json({ error: "Токен недействителен" }); // expired
+    return res.status(401).json({ error: "Токен недействителен" });
+  }
 }
 
 function normStr(s) {
@@ -170,7 +184,7 @@ router.get("/series-list", async (req, res) => {
 });
 
 // ── POST /api/anime — добавление (только админ) ─────────────────
-router.post("/", requireAdmin, async (req, res) => {
+router.post("/", requireAdmin, validate(schemas.animeBody), async (req, res) => {
   const body = req.body || {};
   const title = normStr(body.title);
   if (!title) return res.status(400).json({ error: "Укажите название" });
@@ -212,6 +226,25 @@ router.post("/", requireAdmin, async (req, res) => {
     await saveAnimeGenresAndThemes(client, animeId, genreIds, themeList);
     if (body.series) await saveAnimeSeries(client, animeId, body.series);
     await client.query("COMMIT");
+    // Поля расписания — обновляем отдельно (graceful: колонки могут ещё не существовать)
+    try {
+      const airWeekdayVal = body.air_weekday != null && body.air_weekday !== ""
+        ? Number(body.air_weekday) : null;
+      const airTimeVal = normStr(body.air_time);
+      const episodesAiredVal = numOrNull(body.episodes_aired) || 0;
+      await pool.query(
+        "UPDATE anime SET air_weekday=$1, air_time=$2, episodes_aired=$3 WHERE id=$4",
+        [airWeekdayVal, airTimeVal, episodesAiredVal, animeId]
+      );
+      if (airWeekdayVal != null && airTimeVal) {
+        const { calcNextEpisodeAt } = require("../services/episodeScheduler");
+        const nextAt = calcNextEpisodeAt(airWeekdayVal, airTimeVal);
+        await pool.query("UPDATE anime SET next_episode_at=$1 WHERE id=$2", [nextAt, animeId]);
+      }
+    } catch (schedErr) {
+      // Колонки расписания ещё не добавлены — применить миграцию 006_episode_schedule.sql
+      console.warn("[anime] Schedule fields not yet in DB:", schedErr.message);
+    }
     res.status(201).json({ id: animeId, ok: true });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -223,7 +256,7 @@ router.post("/", requireAdmin, async (req, res) => {
 });
 
 // ── PUT /api/anime/:id — редактирование (только админ) ──────────
-router.put("/:id", requireAdmin, async (req, res) => {
+router.put("/:id", requireAdmin, validate(schemas.animeBody), async (req, res) => {
   const { id } = req.params;
   if (isNaN(+id)) return res.status(400).json({ error: "Неверный id" });
 
@@ -272,6 +305,25 @@ router.put("/:id", requireAdmin, async (req, res) => {
     await saveAnimeGenresAndThemes(client, id, genreIds, themeList);
     if (body.series) await saveAnimeSeries(client, id, body.series);
     await client.query("COMMIT");
+    // Поля расписания — отдельно с graceful fallback
+    try {
+      const airWeekday = body.air_weekday != null && body.air_weekday !== ""
+        ? Number(body.air_weekday) : null;
+      const airTime = normStr(body.air_time);
+      await pool.query(
+        "UPDATE anime SET air_weekday=$1, air_time=$2, episodes_aired=$3 WHERE id=$4",
+        [airWeekday, airTime, numOrNull(body.episodes_aired) ?? 0, id]
+      );
+      if (airWeekday != null && airTime) {
+        const { calcNextEpisodeAt } = require("../services/episodeScheduler");
+        const nextAt = calcNextEpisodeAt(airWeekday, airTime);
+        await pool.query("UPDATE anime SET next_episode_at=$1 WHERE id=$2", [nextAt, id]);
+      } else if (body.status !== "ongoing") {
+        await pool.query("UPDATE anime SET next_episode_at=NULL WHERE id=$1", [id]);
+      }
+    } catch (schedErr) {
+      console.warn("[anime] Schedule fields not yet in DB:", schedErr.message);
+    }
     res.json({ ok: true, id: Number(id) });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -357,29 +409,49 @@ router.post("/:id/characters", requireAdmin, async (req, res) => {
 // ── GET /api/anime — список ───────────────────────────────────
 router.get("/", optionalAuth, async (req, res) => {
   try {
-    const { q, status, type, sort, genre, studio, theme, is_new, series, limit=100, offset=0 } = req.query;
+    const { q, status, type, sort, genre, studio, theme, is_new, series, season_year, season_quarter, limit=100, offset=0 } = req.query;
+    // filterParams — только параметры WHERE (без userId, limit, offset)
     const conds = ["1=1"];
-    const params = [];
+    const filterParams = [];
     let i = 1;
 
-    if (q)      { conds.push(`(a.title ILIKE $${i} OR a.title_en ILIKE $${i} OR a.title_jp ILIKE $${i})`); params.push(`%${q}%`); i++; }
-    if (status) { conds.push(`a.status = $${i}`); params.push(status); i++; }
-    if (type)   { conds.push(`a.type = $${i}`);   params.push(type);   i++; }
+    if (q)      { conds.push(`(a.title ILIKE $${i} OR a.title_en ILIKE $${i} OR a.title_jp ILIKE $${i})`); filterParams.push(`%${q}%`); i++; }
+    if (status) { conds.push(`a.status = $${i}`); filterParams.push(status); i++; }
+    if (type)   { conds.push(`a.type = $${i}`);   filterParams.push(type);   i++; }
     if (is_new === "true") conds.push("a.is_new = TRUE");
     if (genre)  {
       conds.push(`a.id IN (SELECT ag.anime_id FROM anime_genres ag JOIN genres g ON g.id = ag.genre_id WHERE g.name = $${i})`);
-      params.push(genre); i++;
+      filterParams.push(genre); i++;
     }
     if (theme) {
       conds.push(`a.id IN (SELECT anime_id FROM anime_themes WHERE theme = $${i})`);
-      params.push(theme); i++;
+      filterParams.push(theme); i++;
     }
-    if (studio) { conds.push(`s.name = $${i}`); params.push(studio); i++; }
+    if (studio) { conds.push(`s.name = $${i}`); filterParams.push(studio); i++; }
     if (series) {
       conds.push(`a.id IN (SELECT anime_id FROM anime_series_entries WHERE series_id = $${i})`);
-      params.push(series); i++;
+      filterParams.push(series); i++;
+    }
+    if (season_year) {
+      const yr = parseInt(season_year, 10);
+      if (!isNaN(yr)) {
+        conds.push(`EXTRACT(YEAR FROM a.aired_from)::int = $${i}`);
+        filterParams.push(yr); i++;
+      }
+    }
+    if (season_quarter) {
+      const qtr = parseInt(season_quarter, 10);
+      if (!isNaN(qtr) && qtr >= 1 && qtr <= 4) {
+        conds.push(`EXTRACT(QUARTER FROM a.aired_from)::int = $${i}`);
+        filterParams.push(qtr); i++;
+      }
     }
 
+    // countSql использует только filterParams (без userId/limit/offset)
+    const countSql = `SELECT COUNT(DISTINCT a.id)::int AS total FROM anime a LEFT JOIN anim_studies s ON s.id = a.studio_id WHERE ${conds.join(" AND ")}`;
+
+    // Для основного SELECT добавляем userId (опционально), затем limit/offset
+    const params = [...filterParams];
     const myR = req.userId
       ? `, (SELECT score FROM user_ratings WHERE user_id = $${i++} AND anime_id = a.id) AS my_rating`
       : "";
@@ -418,7 +490,50 @@ router.get("/", optionalAuth, async (req, res) => {
       ORDER BY ${ord}
       LIMIT $${li} OFFSET $${oi}
     `;
-    res.json((await pool.query(sql, params)).rows);
+
+    const [rows, countRow] = await Promise.all([
+      pool.query(sql, params),
+      pool.query(countSql, filterParams),
+    ]);
+    res.json({ items: rows.rows, total: countRow.rows[0].total });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── GET /api/anime/series/:id — страница серии ───────────────
+router.get("/series/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isNaN(+id)) return res.status(400).json({ error: "Неверный id" });
+
+    const serQ = await pool.query("SELECT * FROM anime_series WHERE id=$1", [id]);
+    if (!serQ.rows[0]) return res.status(404).json({ error: "Серия не найдена" });
+
+    const entriesQ = await pool.query(`
+      SELECT
+        a.id, a.title, a.title_jp, a.title_en, a.poster_url,
+        a.status, a.type, a.episodes, a.aired_from, a.aired_to,
+        a.season_num, a.synopsis,
+        s.name AS studio_name,
+        ROUND(AVG(ur.score)::numeric, 1) AS avg_rating,
+        COUNT(DISTINCT ur.user_id)::int AS rating_count,
+        ase.sort_order
+      FROM anime_series_entries ase
+      JOIN anime a ON a.id = ase.anime_id
+      LEFT JOIN anim_studies s ON s.id = a.studio_id
+      LEFT JOIN user_ratings ur ON ur.anime_id = a.id
+      WHERE ase.series_id = $1
+      GROUP BY a.id, s.name, ase.sort_order
+      ORDER BY ase.sort_order ASC, a.aired_from ASC NULLS LAST
+    `, [id]);
+
+    res.json({
+      ...serQ.rows[0],
+      entries: entriesQ.rows,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -576,12 +691,10 @@ router.get("/:id", optionalAuth, async (req, res) => {
 });
 
 // ── POST /api/anime/:id/rate ──────────────────────────────────
-router.post("/:id/rate", requireAuth, async (req, res) => {
+router.post("/:id/rate", requireAuth, validate(schemas.rating), async (req, res) => {
   try {
     const { id } = req.params;
     const { score } = req.body;
-    if (!score || score < 1 || score > 10)
-      return res.status(400).json({ error: "Оценка 1-10" });
     await pool.query(`
       INSERT INTO user_ratings (user_id, anime_id, score) VALUES ($1,$2,$3)
       ON CONFLICT (user_id, anime_id) DO UPDATE SET score=$3, rated_at=NOW()
@@ -595,11 +708,10 @@ router.post("/:id/rate", requireAuth, async (req, res) => {
 });
 
 // ── POST /api/anime/:id/comments ─────────────────────────────
-router.post("/:id/comments", requireAuth, async (req, res) => {
+router.post("/:id/comments", requireAuth, validate(schemas.comment), async (req, res) => {
   try {
     const { id } = req.params;
     const { body, parent_id, image_url } = req.body;
-    if (!body?.trim() && !image_url) return res.status(400).json({ error: "Пустой комментарий" });
 
     // Получаем username родительского комментария (если есть)
     let parentUsername = null;
@@ -622,17 +734,46 @@ router.post("/:id/comments", requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── DELETE /api/anime/comments/:commentId — удалить комментарий (свой или модератор/админ)
+router.delete("/comments/:commentId", requireAuth, async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const auth = req.headers.authorization;
+    const p = require("jsonwebtoken").verify(auth.slice(7), process.env.JWT_SECRET);
+    const isModAdmin = p.role === 1 || p.role === 2;
+    const q = await pool.query("SELECT user_id FROM comments WHERE id=$1 AND is_deleted=FALSE", [commentId]);
+    if (!q.rows[0]) return res.status(404).json({ error: "Комментарий не найден" });
+    if (q.rows[0].user_id !== req.userId && !isModAdmin)
+      return res.status(403).json({ error: "Нет доступа" });
+    await pool.query("UPDATE comments SET is_deleted=TRUE WHERE id=$1", [commentId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── PATCH /api/anime/comments/:commentId — редактировать (только автор, в течение 15 мин)
+router.patch("/comments/:commentId", requireAuth, async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: "Пустой комментарий" });
+    const q = await pool.query("SELECT user_id, created_at FROM comments WHERE id=$1 AND is_deleted=FALSE", [commentId]);
+    if (!q.rows[0]) return res.status(404).json({ error: "Комментарий не найден" });
+    if (q.rows[0].user_id !== req.userId) return res.status(403).json({ error: "Нет доступа" });
+    const age = (Date.now() - new Date(q.rows[0].created_at).getTime()) / 1000 / 60;
+    if (age > 15) return res.status(403).json({ error: "Редактирование доступно только в течение 15 минут после публикации" });
+    const r = await pool.query(
+      "UPDATE comments SET body=$1, updated_at=NOW() WHERE id=$2 RETURNING body, updated_at",
+      [body.trim(), commentId]
+    );
+    res.json({ ok: true, ...r.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── POST /api/anime/:id/reviews ───────────────────────────────
-router.post("/:id/reviews", requireAuth, async (req, res) => {
+router.post("/:id/reviews", requireAuth, validate(schemas.review), async (req, res) => {
   try {
     const { id } = req.params;
     const { score, title, body } = req.body;
-    if (!score || score < 1 || score > 10)
-      return res.status(400).json({ error: "Оценка 1-10" });
-    if (!title?.trim())
-      return res.status(400).json({ error: "Укажите заголовок" });
-    if (!body?.trim() || body.trim().length < 100)
-      return res.status(400).json({ error: "Рецензия должна быть не менее 100 символов" });
 
     const r = await pool.query(`
       INSERT INTO reviews (user_id, anime_id, score, title, body)
@@ -678,9 +819,124 @@ router.post("/reviews/:reviewId/like", requireAuth, async (req, res) => {
     } else {
       await pool.query("INSERT INTO review_likes (user_id, review_id) VALUES ($1,$2)", [req.userId, reviewId]);
       await pool.query("UPDATE reviews SET helpful=helpful+1 WHERE id=$1", [reviewId]);
+      // Уведомление автору рецензии
+      const rvAuthor = await pool.query("SELECT user_id, anime_id FROM reviews WHERE id=$1", [reviewId]);
+      if (rvAuthor.rows[0]) {
+        await createNotification(pool, {
+          userId: rvAuthor.rows[0].user_id,
+          actorId: req.userId,
+          type: "review_like",
+          reviewId: Number(reviewId),
+          animeId: rvAuthor.rows[0].anime_id,
+        });
+      }
       res.json({ liked: true });
     }
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/anime/:id/staff — привязать автора к аниме ────
+router.post("/:id/staff", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { staff_id, role } = req.body;
+    if (!staff_id) return res.status(400).json({ error: "Укажите staff_id" });
+    await pool.query(
+      `INSERT INTO anime_staff (anime_id, staff_id, role)
+       VALUES ($1,$2,$3) ON CONFLICT (anime_id, staff_id, role) DO NOTHING`,
+      [id, staff_id, role?.trim() || "Director"]
+    );
+    const r = await pool.query(
+      `SELECT st.id, st.name, st.name_jp, st.image_url, ast.role
+       FROM staff st JOIN anime_staff ast ON ast.staff_id=st.id
+       WHERE ast.anime_id=$1 AND ast.staff_id=$2`,
+      [id, staff_id]
+    );
+    res.status(201).json(r.rows[0] || { ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── DELETE /api/anime/:id/staff/:staffId ─────────────────────
+router.delete("/:id/staff/:staffId", requireAdmin, async (req, res) => {
+  try {
+    const { id, staffId } = req.params;
+    const { role } = req.body;
+    const q = role
+      ? await pool.query("DELETE FROM anime_staff WHERE anime_id=$1 AND staff_id=$2 AND role=$3", [id, staffId, role])
+      : await pool.query("DELETE FROM anime_staff WHERE anime_id=$1 AND staff_id=$2", [id, staffId]);
+    res.json({ ok: true, deleted: q.rowCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/anime/:id/similar — похожие аниме (по жанрам + типу, исключая текущее и из той же серии)
+router.get("/:id/similar", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: "Неверный id" });
+  try {
+    // Получаем жанры и тип текущего аниме
+    const baseQ = await pool.query(
+      `SELECT a.type, a.studio_id,
+              COALESCE(array_agg(ag.genre_id) FILTER (WHERE ag.genre_id IS NOT NULL), '{}') AS genre_ids
+       FROM anime a
+       LEFT JOIN anime_genres ag ON ag.anime_id = a.id
+       WHERE a.id = $1
+       GROUP BY a.id`,
+      [id]
+    );
+    if (!baseQ.rows[0]) return res.status(404).json({ error: "Аниме не найдено" });
+
+    const { type, studio_id, genre_ids } = baseQ.rows[0];
+    if (!genre_ids.length) return res.json([]);
+
+    // Выбираем похожие: совпадение жанров (больше совпадений = выше), тот же тип приоритет
+    const similar = await pool.query(
+      `SELECT
+         a.id, a.title, a.title_en, a.poster_url, a.status, a.type,
+         a.episodes, a.aired_from,
+         s.name AS studio_name,
+         ROUND(AVG(ur.score)::numeric, 1) AS avg_rating,
+         COUNT(DISTINCT ur.user_id)::int AS rating_count,
+         COALESCE(JSON_AGG(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '[]') AS genres,
+         -- score: совпавшие жанры * 3 + бонус за тип + бонус за студию
+         (
+           SELECT COUNT(*) FROM anime_genres ag2
+           WHERE ag2.anime_id = a.id AND ag2.genre_id = ANY($2::int[])
+         ) * 3
+         + CASE WHEN a.type = $3 THEN 2 ELSE 0 END
+         + CASE WHEN a.studio_id = $4 AND $4 IS NOT NULL THEN 1 ELSE 0 END
+         AS relevance
+       FROM anime a
+       LEFT JOIN anim_studies s  ON s.id = a.studio_id
+       LEFT JOIN anime_genres ag ON ag.anime_id = a.id
+       LEFT JOIN genres       g  ON g.id = ag.genre_id
+       LEFT JOIN user_ratings ur ON ur.anime_id = a.id
+       WHERE a.id != $1
+         AND a.id IN (
+           SELECT DISTINCT ag3.anime_id FROM anime_genres ag3
+           WHERE ag3.genre_id = ANY($2::int[])
+         )
+         -- Исключаем аниме из той же серии
+         AND a.id NOT IN (
+           SELECT ase2.anime_id FROM anime_series_entries ase2
+           WHERE ase2.series_id IN (
+             SELECT ase.series_id FROM anime_series_entries ase WHERE ase.anime_id = $1
+           )
+         )
+       GROUP BY a.id, s.name
+       HAVING (
+         SELECT COUNT(*) FROM anime_genres ag2
+         WHERE ag2.anime_id = a.id AND ag2.genre_id = ANY($2::int[])
+       ) >= 1
+       ORDER BY relevance DESC, avg_rating DESC NULLS LAST
+       LIMIT 6`,
+      [id, genre_ids, type, studio_id]
+    );
+
+    res.json(similar.rows);
+  } catch (err) {
+    console.error("similar anime error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -1,8 +1,9 @@
 // server/routes/user.js
-const router = require("express").Router();
-const pool   = require("../db");
-const jwt    = require("jsonwebtoken");
-const path   = require("path");
+const router  = require("express").Router();
+const pool    = require("../db");
+const jwt     = require("jsonwebtoken");
+const path    = require("path");
+const bcrypt  = require("bcryptjs");
 const fs     = require("fs");
 const crypto = require("crypto");
 const multer = require("multer");
@@ -60,7 +61,9 @@ const avatarUpload = multer({
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const r = await pool.query(
-      "SELECT id, username, email, avatar_url, role_id, hide_email, hide_watchlist, created_at FROM users WHERE id=$1",
+      `SELECT id, username, email, avatar_url, role_id, hide_email, hide_watchlist,
+              bio, banner_url, location, website, social_links, created_at
+       FROM users WHERE id=$1`,
       [req.userId]
     );
     if (!r.rows[0]) return res.status(404).json({ error: "Не найдено" });
@@ -130,6 +133,33 @@ router.patch("/privacy", requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PATCH /api/user/profile — обновить профиль (bio, banner, location, website, social_links)
+router.patch("/profile", requireAuth, async (req, res) => {
+  try {
+    const { bio, banner_url, location, website, social_links } = req.body;
+    // Валидация длин
+    if (bio        && bio.length > 1000)         return res.status(400).json({ error: "Биография не более 1000 символов" });
+    if (location   && location.length > 100)     return res.status(400).json({ error: "Местоположение не более 100 символов" });
+    if (website    && website.length > 200)      return res.status(400).json({ error: "Ссылка не более 200 символов" });
+
+    await pool.query(
+      `UPDATE users SET
+        bio=$1, banner_url=$2, location=$3, website=$4,
+        social_links=$5, updated_at=NOW()
+       WHERE id=$6`,
+      [
+        bio?.trim()        || null,
+        banner_url?.trim() || null,
+        location?.trim()   || null,
+        website?.trim()    || null,
+        JSON.stringify(social_links || {}),
+        req.userId,
+      ]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ══════════════════════════════════════════════════════════════
 // ПУБЛИЧНЫЙ ПРОФИЛЬ ДРУГОГО ПОЛЬЗОВАТЕЛЯ
 // ══════════════════════════════════════════════════════════════
@@ -140,6 +170,7 @@ router.get("/profile/:username", optionalAuth, async (req, res) => {
     const { username } = req.params;
     const userQ = await pool.query(
       `SELECT id, username, avatar_url, role_id, hide_email, hide_watchlist,
+              bio, banner_url, location, website, social_links,
               created_at, email
        FROM users WHERE username=$1 AND is_active=TRUE`,
       [username]
@@ -152,16 +183,21 @@ router.get("/profile/:username", optionalAuth, async (req, res) => {
 
     // Формируем публичные данные
     const pub = {
-      id:         u.id,
-      username:   u.username,
-      avatar_url: u.avatar_url,
-      role_id:    u.role_id,
-      created_at: u.created_at,
-      is_self:    isSelf,
-      // email — только себе или если не скрыт, или мод/админ
-      email: (isSelf || isAdminMod || !u.hide_email) ? u.email : null,
+      id:           u.id,
+      username:     u.username,
+      avatar_url:   u.avatar_url,
+      role_id:      u.role_id,
+      created_at:   u.created_at,
+      is_self:      isSelf,
+      email:        (isSelf || isAdminMod || !u.hide_email) ? u.email : null,
       hide_email:    u.hide_email,
       hide_watchlist: u.hide_watchlist,
+      // Расширенный профиль (всегда публичный)
+      bio:          u.bio,
+      banner_url:   u.banner_url,
+      location:     u.location,
+      website:      u.website,
+      social_links: u.social_links || {},
     };
 
     // Статистика (всегда публичная — только числа)
@@ -172,7 +208,7 @@ router.get("/profile/:username", optionalAuth, async (req, res) => {
       pool.query("SELECT COUNT(*)::int AS count FROM comments WHERE user_id=$1 AND is_deleted=FALSE", [u.id]),
     ]);
 
-    const watchStats = { watching: 0, completed: 0, planned: 0 };
+    const watchStats = { watching: 0, completed: 0, planned: 0, on_hold: 0, dropped: 0 };
     watchQ.rows.forEach(r => { if (watchStats[r.status] !== undefined) watchStats[r.status] = r.count; });
 
     pub.stats = {
@@ -291,4 +327,104 @@ router.get("/reviews", requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── PATCH /api/user/password — смена пароля ──────────────────
+router.patch("/password", requireAuth, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password)
+      return res.status(400).json({ error: "Заполните все поля" });
+    if (new_password.length < 6)
+      return res.status(400).json({ error: "Новый пароль должен быть не менее 6 символов" });
+
+    const r = await pool.query("SELECT password_hash FROM users WHERE id=$1", [req.userId]);
+    if (!r.rows[0]) return res.status(404).json({ error: "Пользователь не найден" });
+
+    const valid = await bcrypt.compare(current_password, r.rows[0].password_hash);
+    if (!valid) return res.status(400).json({ error: "Неверный текущий пароль" });
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await pool.query("UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2", [hash, req.userId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// ── GET /api/user/ratings-history — история оценок ───────────
+router.get("/ratings-history", requireAuth, async (req, res) => {
+  try {
+    const { limit = 100 } = req.query;
+    const r = await pool.query(`
+      SELECT
+        ur.score,
+        ur.rated_at,
+        a.id    AS anime_id,
+        a.title AS anime_title,
+        a.poster_url,
+        a.type
+      FROM user_ratings ur
+      JOIN anime a ON a.id = ur.anime_id
+      WHERE ur.user_id = $1
+      ORDER BY ur.rated_at DESC
+      LIMIT $2
+    `, [req.userId, Number(limit)]);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── GET /api/user/profile/:username/ratings-history ──────────
+router.get("/profile/:username/ratings-history", optionalAuth, async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { limit = 100 } = req.query;
+    const u = await pool.query("SELECT id FROM users WHERE username=$1 AND is_active=TRUE", [username]);
+    if (!u.rows[0]) return res.status(404).json({ error: "Пользователь не найден" });
+    const r = await pool.query(`
+      SELECT ur.score, ur.rated_at, a.id AS anime_id, a.title AS anime_title, a.poster_url, a.type
+      FROM user_ratings ur
+      JOIN anime a ON a.id = ur.anime_id
+      WHERE ur.user_id = $1
+      ORDER BY ur.rated_at DESC
+      LIMIT $2
+    `, [u.rows[0].id, Number(limit)]);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
+
+// ── DELETE /api/user/account — удалить аккаунт ───────────────
+router.delete("/account", requireAuth, async (req, res) => {
+  const { password } = req.body || {};
+  if (!password) return res.status(400).json({ error: "Введите пароль для подтверждения" });
+
+  const client = await pool.connect();
+  try {
+    // Проверяем пароль
+    const r = await client.query("SELECT password_hash FROM users WHERE id=$1", [req.userId]);
+    if (!r.rows[0]) return res.status(404).json({ error: "Пользователь не найден" });
+    const valid = await bcrypt.compare(password, r.rows[0].password_hash);
+    if (!valid) return res.status(400).json({ error: "Неверный пароль" });
+
+    await client.query("BEGIN");
+    // Мягкое удаление: обезличиваем аккаунт, не удаляем контент
+    const ts = Date.now();
+    await client.query(`
+      UPDATE users SET
+        username       = 'deleted_' || $2,
+        email          = 'deleted_' || $2 || '@deleted.local',
+        password_hash  = '',
+        avatar_url     = NULL,
+        is_active      = FALSE,
+        updated_at     = NOW()
+      WHERE id = $1
+    `, [req.userId, ts]);
+    await client.query("COMMIT");
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
